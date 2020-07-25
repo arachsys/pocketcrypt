@@ -73,6 +73,15 @@ static inline size_t gimli_absorb(gimli_t state, const uint8_t *data,
   return length;
 }
 
+static inline int gimli_compare(const uint8_t *a, const uint8_t *b,
+    size_t length) {
+  uint8_t result = 0;
+
+  for (size_t i = 0; i < length; i++)
+    result |=  (a ? a[i] : 0) ^ (b ? b[i] : 0);
+  return result ? -1 : 0;
+}
+
 static inline size_t gimli_decrypt(gimli_t state, uint8_t *data,
     size_t length, int pad) {
   while (length >= 16) {
