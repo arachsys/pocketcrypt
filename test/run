@@ -1,0 +1,10 @@
+#!/bin/sh -e
+
+CC=${CC:-gcc}
+CFLAGS=${CFLAGS:--flto -march=native -O3 -Wall}
+
+cd -- "${0%/*}/.."
+for TEST in test/*.c; do
+  $CC $CFLAGS $LDFLAGS -I . $TEST -o ${TEST%.c}
+  ${TEST%.c}
+done
