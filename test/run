@@ -5,6 +5,7 @@ CFLAGS=${CFLAGS:--flto -march=native -mtune=native -O3 -Wall}
 
 cd -- "${0%/*}/.."
 for TEST in test/*.c; do
-  $CC $CFLAGS $LDFLAGS -I . $TEST -o ${TEST%.c}
+  $CC $CFLAGS $LDFLAGS -I . -o ${TEST%.c} $TEST \
+    $(grep -q -x -F '#include "x25519.h"' $TEST && echo x25519.c)
   ${TEST%.c}
 done
