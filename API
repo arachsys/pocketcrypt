@@ -1,0 +1,189 @@
+gimli.h
+=======
+
+The Gimli permutation operates over a state of twelve 32-bit words,
+manipulated here as an array of three 128-bit uint32x4_t vectors. Bytes are
+absorbed and squeezed in 16-byte chunks, treated as little-endian words to
+ensure duplex operations are independent of platform byte order.
+
+
+Initialising a duplex state
+---------------------------
+
+To declare a duplex state initialised to zero, use
+
+  gimli_t state = { 0 };
+
+To reset an existing duplex state, it is sufficient to call
+
+  memset(state, 0, sizeof(gimli_t));
+
+and a state can safely be cloned with
+
+  memcpy(new, old, sizeof(gimli_t));
+
+
+Permuting a duplex state
+------------------------
+
+To directly permute a duplex state, use
+
+  gimli(state);
+
+Typically this is bundled into the higher-level duplex operations below.
+
+
+Absorbing a data buffer
+-----------------------
+
+To absorb an arbitrary-length buffer of bytes into a duplex state, call
+
+  gimli_absorb(state, data, length, pad);
+
+Each chunk of 16 bytes is absorbed in turn, then the state is permuted
+before continuing.
+
+If the pad flag is non-zero, the whole buffer is absorbed. The final partial
+or empty chunk is padded and the capacity part of the state forked before
+permuting, as described in the Gimli NIST submission. The return value is
+always zero in this case.
+
+If the pad flag is zero, gimli_absorb() only absorbs complete 16-byte
+chunks, and returns a count of trailing bytes which weren't absorbed, i.e.
+length % 16. These can be moved to the start of the buffer and absorbed on
+the next call, with either additional data or the pad flag set.
+
+Call gimli_absorb() with a length of zero to pad the state if all bytes have
+already processed by previous unpadded calls and there are no bytes
+remaining.
+
+
+Squeezing data into a buffer
+----------------------------
+
+To squeeze data from a duplex state into a buffer, call
+
+  gimli_squeeze(state, data, length);
+
+This extracts data in 16-byte chunks from the rate portion of the duplex
+state into the buffer, permuting the state before continuing the next chunk.
+The state is also permuted after any final partial chunk, but no permutation
+is performed if gimli_squeeze() is called with a length of 0.
+
+
+Encrypting a data buffer
+------------------------
+
+To encrypt an arbitrary-length buffer of bytes based on the current duplex
+state, for example after absorbing a shared key and nonce, call
+
+  gimli_encrypt(state, data, length, pad);
+
+A chunk of 16 data bytes is absorbed into the rate portion of the duplex
+state, the result replacing the data chunk as ciphertext before permuting
+and continuing to the next chunk.
+
+If the pad flag is non-zero, the whole buffer is encrypted. The final
+partial or empty chunk is padded before absorption and the capacity part of
+the state forked before permuting, as described in the Gimli NIST
+submission. The return value is always zero in this case.
+
+If the pad flag is zero, gimli_encrypt() only encrypts complete 16-byte
+chunks, and returns a count of trailing bytes which weren't encrypted, i.e.
+length % 16. These can be moved to the start of the buffer and encrypted on
+the next call, with either additional data or the pad flag set.
+
+Call gimli_encrypt() with a length of zero to pad the state if all bytes
+have already processed by previous unpadded calls and there are no bytes
+remaining.
+
+Remember that authentication requires a tag to be squeezed and appended
+after encrypting the padded message, so it can be checked by the receiver.
+
+
+Decrypting a data buffer
+------------------------
+
+To decrypt an arbitrary-length buffer of bytes based on the current duplex
+state, for example after absorbing a shared key and nonce, call
+
+  gimli_decrypt(state, data, length, pad);
+
+The rate portion of the duplex state is mixed into a chunk of 16 data bytes,
+then the resulting decrypted plaintext is absorbed back into the state
+before permuting and continuing to the next chunk.
+
+If the pad flag is non-zero, the whole buffer is decrypted. The final
+partial or empty chunk is padded before absorption and the capacity part of
+the state forked before permuting, as described in the Gimli NIST
+submission. The return value is always zero in this case.
+
+If the pad flag is zero, gimli_decrypt() only decrypts complete 16-byte
+chunks, and returns a count of trailing bytes which weren't decrypted, i.e.
+length % 16. These can be moved to the start of the buffer and decrypted on
+the next call, with either additional data or the pad flag set.
+
+Call gimli_decrypt() with a length of zero to pad the state if all bytes
+have already processed by previous unpadded calls and there are no bytes
+remaining.
+
+Remember that authentication requires the received tag to be checked against
+one squeezed from the duplex state after decrypting the message.
+
+
+Constant-time comparison
+------------------------
+
+To compare two equal-sized byte arrays in constant time, call
+
+  gimli_compare(a, b, length);
+
+This returns 0 for equality, -1 otherwise. If a or b is null, the other
+argument is compared with zero.
+
+This is useful for validating authentication tags or checking other secret
+data without inadvertently revealing the location of the first discrepancy
+through the time taken to detect it.
+
+
+x25519.h
+========
+
+Both scalars and curve points are represented by 32-byte arrays. The
+correct-sized array type and standard base point as exported by x25519.h as
+
+  typedef uint8_t x25519_t[32];
+  const x25519_t x25519_generator = { 9 };
+
+
+Scalar multiplication
+---------------------
+
+To multiply a curve point by a scalar, call
+
+  x25519(out, scalar, point);
+
+If out is all-zero, -1 is returned to flag the non-contributory behaviour.
+Otherwise, x25519() returns 0. README discusses the significance of this.
+
+Generate a key pair by multiplying x25519_generator (point) by a random
+scalar. Calculate a shared secret by multipling the secret key (scalar) by
+the public key (point).
+
+
+Signatures
+----------
+
+Given an identity secret, ephemeral secret and challenge, generate a
+response with
+
+  x25519_sign(response, challenge, ephemeral, identity);
+
+Given an identity public key, ephemeral public key, challenge and response,
+verify the response with
+
+  x25519_verify(response, challenge, ephemeral, identity);
+
+which returns 0 for a valid signature, -1 otherwise.
+
+See the detailed discussion in README for further information.
