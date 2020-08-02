@@ -66,6 +66,10 @@ gimli_squeeze() extracts bytes from the rate portion of the duplex state
 into a buffer, permuting the state after each chunk of 16 bytes and after
 any final partial chunk.
 
+gimli_ratchet(state) irreversibly modifies the duplex state by zeroing the
+rate portion then permuting. This ensures forward secrecy by preventing
+rollback even following complete compromise of the state.
+
 For validating authentication tags, gimli_compare(a, b, length) is provided.
 It compares two byte arrays in constant time, returning 0 for equality, -1
 otherwise. If a or b is null, the other argument is compared with zero.
