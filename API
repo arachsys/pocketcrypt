@@ -131,6 +131,18 @@ Remember that authentication requires the received tag to be checked against
 one squeezed from the duplex state after decrypting the message.
 
 
+Ratcheting the state
+--------------------
+
+To ensure forward secrecy during a session, call
+
+  gimli_ratchet(state);
+
+This irreversibly modifies the duplex state by zeroing the rate portion then
+permuting, thus preventing rollback even following complete compromise of
+the state.
+
+
 Constant-time comparison
 ------------------------
 

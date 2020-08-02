@@ -128,6 +128,12 @@ static inline size_t gimli_encrypt(gimli_t state, uint8_t *data,
   return length;
 }
 
+static inline void gimli_ratchet(gimli_t state) {
+  for (uint8_t i = 0; i < 16; i++)
+    gimli_byte(state, i) = 0;
+  gimli(state);
+}
+
 static inline void gimli_squeeze(gimli_t state, uint8_t *data,
     size_t length) {
   while (length >= 16) {
