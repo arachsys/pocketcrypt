@@ -1049,8 +1049,8 @@ int main(void) {
 
   for (size_t length = 0; length <= max; length++) {
     gimli_t state = { 0 };
-    gimli_absorb(state, in, length, 1);
-    gimli_squeeze(state, out, 32);
+    gimli_pad(state, gimli_absorb(state, 0, in, length));
+    gimli_squeeze(state, 0, out, 32);
     if (check(out, known[length])) /* variable time */
       errx(EXIT_FAILURE, "Known hash failure with %zd-byte input", length);
   }

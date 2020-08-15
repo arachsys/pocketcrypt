@@ -1126,19 +1126,19 @@ int main(void) {
 
       memcpy(state, start, sizeof(state));
       gimli(state);
-      gimli_absorb(state, in, extra, 1);
+      gimli_pad(state, gimli_absorb(state, 0, in, extra));
       memcpy(out, in, sizeof(in));
-      gimli_encrypt(state, out, length, 1);
-      gimli_squeeze(state, out + length, sizeof(tag));
+      gimli_pad(state, gimli_encrypt(state, 0, out, length));
+      gimli_squeeze(state, 0, out + length, sizeof(tag));
       if (check(out, known[entry])) /* variable time */
         errx(EXIT_FAILURE, "Encryption failure with %zd-byte message and "
           "%zd-byte associated data", length, extra);
 
       memcpy(state, start, sizeof(state));
       gimli(state);
-      gimli_absorb(state, in, extra, 1);
-      gimli_decrypt(state, out, length, 1);
-      gimli_squeeze(state, tag, sizeof(tag));
+      gimli_pad(state, gimli_absorb(state, 0, in, extra));
+      gimli_pad(state, gimli_decrypt(state, 0, out, length));
+      gimli_squeeze(state, 0, tag, sizeof(tag));
       if (memcmp(in, out, length)) /* variable time */
         errx(EXIT_FAILURE, "Decryption failure with %zd-byte message and "
           "%zd-byte associated data", length, extra);
