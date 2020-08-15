@@ -24,19 +24,19 @@ static double speed(void (*operation)(void), size_t repeat) {
 }
 
 static void absorb(void) {
-  gimli_absorb(state, buffer, sizeof(buffer), 0);
+  gimli_absorb(state, 0, buffer, sizeof(buffer));
 }
 
 static void squeeze(void) {
-  gimli_squeeze(state, buffer, sizeof(buffer));
+  gimli_squeeze(state, 0, buffer, sizeof(buffer));
 }
 
 static void encrypt(void) {
-  gimli_encrypt(state, buffer, sizeof(buffer), 0);
+  gimli_encrypt(state, 0, buffer, sizeof(buffer));
 }
 
 static void decrypt(void) {
-  gimli_decrypt(state, buffer, sizeof(buffer), 0);
+  gimli_decrypt(state, 0, buffer, sizeof(buffer));
 }
 
 static double exchange(size_t repeat) {

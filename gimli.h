@@ -54,23 +54,33 @@ static inline void gimli(gimli_t state) {
   }
 }
 
-static inline size_t gimli_absorb(gimli_t state, const uint8_t *data,
-    size_t length, int pad) {
+static inline uint8_t gimli_absorb(gimli_t state, uint8_t offset,
+    const uint8_t *data, size_t length) {
+  if (offset &= 15) {
+    for (uint8_t i = 0; i < length && i < 16 - offset; i++)
+      gimli_byte(state, i + offset) ^= data[i];
+    if (length + offset < 16)
+      return length + offset;
+    data += 16 - offset, length -= 16 - offset;
+    gimli(state);
+  }
+
   while (length >= 16) {
     for (uint8_t i = 0; i < 16; i++)
       gimli_byte(state, i) ^= data[i];
     data += 16, length -= 16;
     gimli(state);
   }
-  if (pad) {
-    for (uint8_t i = 0; i < length; i++)
-      gimli_byte(state, i) ^= data[i];
-    gimli_byte(state, length) ^= 1;
-    gimli_byte(state, 47) ^= 1;
-    gimli(state);
-    return 0;
-  }
+
+  for (uint8_t i = 0; i < length; i++)
+    gimli_byte(state, i) ^= data[i];
   return length;
+}
+
+static inline uint8_t gimli_pad(gimli_t state, uint8_t offset) {
+  gimli_byte(state, offset & 15) ^= 1;
+  gimli_byte(state, 47) ^= 1;
+  return gimli(state), 0;
 }
 
 static inline int gimli_compare(const uint8_t *a, const uint8_t *b,
@@ -82,8 +92,19 @@ static inline int gimli_compare(const uint8_t *a, const uint8_t *b,
   return result ? -1 : 0;
 }
 
-static inline size_t gimli_decrypt(gimli_t state, uint8_t *data,
-    size_t length, int pad) {
+static inline uint8_t gimli_decrypt(gimli_t state, uint8_t offset,
+    uint8_t *data, size_t length) {
+  if (offset &= 15) {
+    for (uint8_t i = 0; i < length && i < 16 - offset; i++)
+      data[i] ^= gimli_byte(state, i + offset);
+    for (uint8_t i = 0; i < length && i < 16 - offset; i++)
+      gimli_byte(state, i + offset) ^= data[i];
+    if (length + offset < 16)
+      return length + offset;
+    data += 16 - offset, length -= 16 - offset;
+    gimli(state);
+  }
+
   while (length >= 16) {
     for (uint8_t i = 0; i < 16; i++)
       data[i] ^= gimli_byte(state, i);
@@ -92,21 +113,27 @@ static inline size_t gimli_decrypt(gimli_t state, uint8_t *data,
     data += 16, length -= 16;
     gimli(state);
   }
-  if (pad) {
-    for (uint8_t i = 0; i < length; i++)
-      data[i] ^= gimli_byte(state, i);
-    for (uint8_t i = 0; i < length; i++)
-      gimli_byte(state, i) ^= data[i];
-    gimli_byte(state, length) ^= 1;
-    gimli_byte(state, 47) ^= 1;
-    gimli(state);
-    return 0;
-  }
+
+  for (uint8_t i = 0; i < length; i++)
+    data[i] ^= gimli_byte(state, i);
+  for (uint8_t i = 0; i < length; i++)
+    gimli_byte(state, i) ^= data[i];
   return length;
 }
 
-static inline size_t gimli_encrypt(gimli_t state, uint8_t *data,
-    size_t length, int pad) {
+static inline uint8_t gimli_encrypt(gimli_t state, uint8_t offset,
+    uint8_t *data, size_t length) {
+  if (offset &= 15) {
+    for (uint8_t i = 0; i < length && i < 16 - offset; i++)
+      gimli_byte(state, i + offset) ^= data[i];
+    for (uint8_t i = 0; i < length && i < 16 - offset; i++)
+      data[i] = gimli_byte(state, i + offset);
+    if (length + offset < 16)
+      return length + offset;
+    data += 16 - offset, length -= 16 - offset;
+    gimli(state);
+  }
+
   while (length >= 16) {
     for (uint8_t i = 0; i < 16; i++)
       gimli_byte(state, i) ^= data[i];
@@ -115,38 +142,44 @@ static inline size_t gimli_encrypt(gimli_t state, uint8_t *data,
     data += 16, length -= 16;
     gimli(state);
   }
-  if (pad) {
-    for (uint8_t i = 0; i < length; i++)
-      gimli_byte(state, i) ^= data[i];
-    for (uint8_t i = 0; i < length; i++)
-      data[i] = gimli_byte(state, i);
-    gimli_byte(state, length) ^= 1;
-    gimli_byte(state, 47) ^= 1;
-    gimli(state);
-    return 0;
-  }
+
+  for (uint8_t i = 0; i < length; i++)
+    gimli_byte(state, i) ^= data[i];
+  for (uint8_t i = 0; i < length; i++)
+    data[i] = gimli_byte(state, i);
   return length;
 }
 
-static inline void gimli_ratchet(gimli_t state) {
-  for (uint8_t i = 0; i < 16; i++)
+static inline uint8_t gimli_ratchet(gimli_t state, uint8_t offset) {
+  for (uint8_t i = offset; i < 16; i++)
     gimli_byte(state, i) = 0;
   gimli(state);
+  for (uint8_t i = 0; i < offset; i++)
+    gimli_byte(state, i) = 0;
+  return offset;
 }
 
-static inline void gimli_squeeze(gimli_t state, uint8_t *data,
-    size_t length) {
+static inline uint8_t gimli_squeeze(gimli_t state, uint8_t offset,
+    uint8_t *data, size_t length) {
+  if (offset &= 15) {
+    for (uint8_t i = 0; i < length && i < 16 - offset; i++)
+      data[i] = gimli_byte(state, i + offset);
+    if (length + offset < 16)
+      return length + offset;
+    data += 16 - offset, length -= 16 - offset;
+    gimli(state);
+  }
+
   while (length >= 16) {
     for (uint8_t i = 0; i < 16; i++)
       data[i] = gimli_byte(state, i);
     data += 16, length -= 16;
     gimli(state);
   }
-  if (length > 0) {
-    for (uint8_t i = 0; i < length; i++)
-      data[i] = gimli_byte(state, i);
-    gimli(state);
-  }
+
+  for (uint8_t i = 0; i < length; i++)
+    data[i] = gimli_byte(state, i);
+  return length;
 }
 
 #endif

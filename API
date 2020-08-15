@@ -6,6 +6,12 @@ manipulated here as an array of three 128-bit uint32x4_t vectors. Bytes are
 absorbed and squeezed in 16-byte chunks, treated as little-endian words to
 ensure duplex operations are independent of platform byte order.
 
+Each duplex call accepts, updates and returns a uint8_t rate offset as well
+as the gimli_t state. This allows partial chunks to be seamlessly absorbed,
+squeezed, encrypted and decrypted in a streaming setting. The offset should
+be initialised as zero at the same time as the state, then passed to and
+received from each duplex operation.
+
 
 Initialising a duplex state
 ---------------------------
@@ -13,12 +19,14 @@ Initialising a duplex state
 To declare a duplex state initialised to zero, use
 
   gimli_t state = { 0 };
+  uint8_t offset = 0;
 
-To reset an existing duplex state, it is sufficient to call
+To reset an existing duplex state, use
 
   memset(state, 0, sizeof(gimli_t));
+  offset = 0;
 
-and a state can safely be cloned with
+and a gimli_t array can safely be cloned with
 
   memcpy(new, old, sizeof(gimli_t));
 
@@ -38,24 +46,12 @@ Absorbing a data buffer
 
 To absorb an arbitrary-length buffer of bytes into a duplex state, call
 
-  gimli_absorb(state, data, length, pad);
+  offset = gimli_absorb(state, offset, data, length);
 
 Each chunk of 16 bytes is absorbed in turn, then the state is permuted
-before continuing.
-
-If the pad flag is non-zero, the whole buffer is absorbed. The final partial
-or empty chunk is padded and the capacity part of the state forked before
-permuting, as described in the Gimli NIST submission. The return value is
-always zero in this case.
-
-If the pad flag is zero, gimli_absorb() only absorbs complete 16-byte
-chunks, and returns a count of trailing bytes which weren't absorbed, i.e.
-length % 16. These can be moved to the start of the buffer and absorbed on
-the next call, with either additional data or the pad flag set.
-
-Call gimli_absorb() with a length of zero to pad the state if all bytes have
-already processed by previous unpadded calls and there are no bytes
-remaining.
+before continuing. Depending on the length of any final partial chunk, the
+updated offset is returned ready to pass to the next gimli_absorb() or
+gimli_pad() call.
 
 
 Squeezing data into a buffer
@@ -63,12 +59,11 @@ Squeezing data into a buffer
 
 To squeeze data from a duplex state into a buffer, call
 
-  gimli_squeeze(state, data, length);
+  offset = gimli_squeeze(state, offset, data, length);
 
-This extracts data in 16-byte chunks from the rate portion of the duplex
-state into the buffer, permuting the state before continuing the next chunk.
-The state is also permuted after any final partial chunk, but no permutation
-is performed if gimli_squeeze() is called with a length of 0.
+This extracts bytes from the duplex state into the buffer, permuting the
+state after each 16-byte chunk and returning the new offset depending on the
+length of the final partial chunk.
 
 
 Encrypting a data buffer
@@ -77,25 +72,12 @@ Encrypting a data buffer
 To encrypt an arbitrary-length buffer of bytes based on the current duplex
 state, for example after absorbing a shared key and nonce, call
 
-  gimli_encrypt(state, data, length, pad);
+  offset = gimli_encrypt(state, offset, data, length);
 
-A chunk of 16 data bytes is absorbed into the rate portion of the duplex
-state, the result replacing the data chunk as ciphertext before permuting
-and continuing to the next chunk.
-
-If the pad flag is non-zero, the whole buffer is encrypted. The final
-partial or empty chunk is padded before absorption and the capacity part of
-the state forked before permuting, as described in the Gimli NIST
-submission. The return value is always zero in this case.
-
-If the pad flag is zero, gimli_encrypt() only encrypts complete 16-byte
-chunks, and returns a count of trailing bytes which weren't encrypted, i.e.
-length % 16. These can be moved to the start of the buffer and encrypted on
-the next call, with either additional data or the pad flag set.
-
-Call gimli_encrypt() with a length of zero to pad the state if all bytes
-have already processed by previous unpadded calls and there are no bytes
-remaining.
+Each chunk of 16 bytes is absorbed in turn, the result replacing that chunk
+as ciphertext before permuting and continuing to the next chunk. Depending
+on the length of any final partial chunk, the updated offset is returned
+ready to pass to the next gimli_encrypt() or gimli_pad() call.
 
 Remember that authentication requires a tag to be squeezed and appended
 after encrypting the padded message, so it can be checked by the receiver.
@@ -107,28 +89,28 @@ Decrypting a data buffer
 To decrypt an arbitrary-length buffer of bytes based on the current duplex
 state, for example after absorbing a shared key and nonce, call
 
-  gimli_decrypt(state, data, length, pad);
+  offset = gimli_decrypt(state, offset, data, length);
 
-The rate portion of the duplex state is mixed into a chunk of 16 data bytes,
+The rate portion of the duplex state is mixed into each chunk of 16 bytes,
 then the resulting decrypted plaintext is absorbed back into the state
-before permuting and continuing to the next chunk.
-
-If the pad flag is non-zero, the whole buffer is decrypted. The final
-partial or empty chunk is padded before absorption and the capacity part of
-the state forked before permuting, as described in the Gimli NIST
-submission. The return value is always zero in this case.
-
-If the pad flag is zero, gimli_decrypt() only decrypts complete 16-byte
-chunks, and returns a count of trailing bytes which weren't decrypted, i.e.
-length % 16. These can be moved to the start of the buffer and decrypted on
-the next call, with either additional data or the pad flag set.
-
-Call gimli_decrypt() with a length of zero to pad the state if all bytes
-have already processed by previous unpadded calls and there are no bytes
-remaining.
+before permuting and continuing to the next chunk. Depending on the length
+of any final partial chunk, the updated offset is returned ready to pass to
+the next gimli_decrypt() or gimli_pad() call.
 
 Remember that authentication requires the received tag to be checked against
 one squeezed from the duplex state after decrypting the message.
+
+
+Padding the state
+-----------------
+
+To prevent extension attacks following an operation on variable-length data,
+pad the state by calling
+
+  offset = gimli_pad(state, offset);
+
+after the final gimli_absorb(), gimli_encrypt() or gimli_decrypt(). This
+will always return an updated offset of zero.
 
 
 Ratcheting the state
@@ -136,11 +118,11 @@ Ratcheting the state
 
 To ensure forward secrecy during a session, call
 
-  gimli_ratchet(state);
+  offset = gimli_ratchet(state, offset);
 
-This irreversibly modifies the duplex state by zeroing the rate portion then
-permuting, thus preventing rollback even following complete compromise of
-the state.
+This irreversibly ratchets the duplex state by zeroing the rate portion of
+the state and permuting, thus preventing rollback even from a completely
+compromised state. As exactly 16 bytes are cleared, offset is unchanged.
 
 
 Constant-time comparison

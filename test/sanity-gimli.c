@@ -6,31 +6,44 @@
 
 #include "gimli.h"
 
-void chunk_absorb(gimli_t state, uint8_t *buffer, size_t length,
+static void chunk_absorb(gimli_t state, uint8_t *buffer, size_t length,
     size_t chunk) {
+  size_t offset = 0;
   while (chunk <= length) {
-    size_t tail = gimli_absorb(state, buffer, chunk, 0);
-    buffer += chunk - tail, length -= chunk - tail;
+    offset = gimli_absorb(state, offset, buffer, chunk);
+    buffer += chunk, length -= chunk;
   }
-  gimli_absorb(state, buffer, length, 1);
+  gimli_pad(state, gimli_absorb(state, offset, buffer, length));
 }
 
-void chunk_decrypt(gimli_t state, uint8_t *buffer, size_t length,
+static void chunk_decrypt(gimli_t state, uint8_t *buffer, size_t length,
     size_t chunk) {
+  size_t offset = 0;
   while (chunk <= length) {
-    size_t tail = gimli_decrypt(state, buffer, chunk, 0);
-    buffer += chunk - tail, length -= chunk - tail;
+    offset = gimli_decrypt(state, offset, buffer, chunk);
+    buffer += chunk, length -= chunk;
   }
-  gimli_decrypt(state, buffer, length, 1);
+  gimli_pad(state, gimli_decrypt(state, offset, buffer, length));
 }
 
-void chunk_encrypt(gimli_t state, uint8_t *buffer, size_t length,
+static void chunk_encrypt(gimli_t state, uint8_t *buffer, size_t length,
     size_t chunk) {
+  size_t offset = 0;
   while (chunk <= length) {
-    size_t tail = gimli_encrypt(state, buffer, chunk, 0);
-    buffer += chunk - tail, length -= chunk - tail;
+    offset = gimli_encrypt(state, offset, buffer, chunk);
+    buffer += chunk, length -= chunk;
   }
-  gimli_encrypt(state, buffer, length, 1);
+  gimli_pad(state, gimli_encrypt(state, offset, buffer, length));
+}
+
+static void chunk_squeeze(gimli_t state, uint8_t *buffer, size_t length,
+    size_t chunk) {
+  size_t offset = 0;
+  while (chunk <= length) {
+    offset = gimli_squeeze(state, offset, buffer, chunk);
+    buffer += chunk, length -= chunk;
+  }
+  gimli_squeeze(state, offset, buffer, length);
 }
 
 static void fill(void *out1, void *out2, size_t length) {
@@ -52,7 +65,7 @@ int main(void) {
     for (size_t chunk = min; chunk <= max; chunk++) {
       fill(buffer1, buffer2, length);
       fill(state1, state2, sizeof(gimli_t));
-      gimli_absorb(state1, buffer1, length, 1);
+      gimli_pad(state1, gimli_absorb(state1, 0, buffer1, length));
       chunk_absorb(state2, buffer2, length, chunk);
       if (memcmp(state1, state2, sizeof(gimli_t)))
         errx(EXIT_FAILURE, "Streaming absorb failure");
@@ -63,7 +76,7 @@ int main(void) {
     for (size_t chunk = min; chunk <= max; chunk++) {
       fill(buffer1, buffer2, length);
       fill(state1, state2, sizeof(gimli_t));
-      gimli_decrypt(state1, buffer1, length, 1);
+      gimli_pad(state1, gimli_decrypt(state1, 0, buffer1, length));
       chunk_decrypt(state2, buffer2, length, chunk);
       if (memcmp(buffer1, buffer2, length))
         errx(EXIT_FAILURE, "Streaming decrypt failure");
@@ -76,7 +89,7 @@ int main(void) {
     for (size_t chunk = min; chunk <= max; chunk++) {
       fill(buffer1, buffer2, length);
       fill(state1, state2, sizeof(gimli_t));
-      gimli_encrypt(state1, buffer1, length, 1);
+      gimli_pad(state1, gimli_encrypt(state1, 0, buffer1, length));
       chunk_encrypt(state2, buffer2, length, chunk);
       if (memcmp(buffer1, buffer2, length))
         errx(EXIT_FAILURE, "Streaming encrypt failure");
@@ -84,13 +97,17 @@ int main(void) {
         errx(EXIT_FAILURE, "Streaming encrypt failure");
     }
 
-  /* Check chunk-by-chunk squeeze matches a bulk squeeze */
-  fill(state1, state2, sizeof(gimli_t));
-  gimli_squeeze(state1, buffer1, size);
-  for (size_t i = 0; i < size; i += 16)
-    gimli_squeeze(state2, buffer2 + i, size < i + 16 ? size - i : 16);
-  if (memcmp(buffer1, buffer2, size))
-    errx(EXIT_FAILURE, "Streaming squeeze failure");
+  /* Check streaming squeeze matches a bulk squeeze */
+  for (size_t chunk = min; chunk <= max; chunk++) {
+    fill(buffer1, buffer2, size);
+    fill(state1, state2, sizeof(gimli_t));
+    gimli_squeeze(state1, 0, buffer1, size);
+    chunk_squeeze(state2, buffer2, size, chunk);
+    if (memcmp(buffer1, buffer2, size))
+      errx(EXIT_FAILURE, "Streaming squeeze failure");
+    if (memcmp(state1, state2, sizeof(gimli_t)))
+      errx(EXIT_FAILURE, "Streaming squeeze failure");
+  }
 
   printf("Streaming duplex operations sanity-checked\n");
   return EXIT_SUCCESS;
