@@ -43,39 +43,49 @@ Initialise a Gimli duplex state with gimli_t state = { 0 }.
 To apply the permutation directly, use gimli(state), but this is typically
 delegated to higher-level duplex operations.
 
-Each duplex call accepts, updates and returns a uint8_t rate offset as well
+Each duplex call accepts, updates and returns a size_t byte counter as well
 as the gimli_t state. This allows partial chunks to be seamlessly absorbed,
-squeezed, encrypted and decrypted in a streaming setting. The offset should
+squeezed, encrypted and decrypted in a streaming setting. The counter should
 be initialised as zero at the same time as the state, then passed to and
 received from each operation that follows.
 
 To absorb an arbitrary-length buffer of bytes into a duplex state, call
-gimli_absorb(state, offset, data, length). Each 16-byte chunk is absorbed in
-turn, then the state is permuted before continuing. Depending on the length
-of any final partial chunk, the updated offset is returned ready to pass to
-the next gimli_absorb() or gimli_pad() call.
+gimli_absorb(state, counter, data, length). Each 16-byte chunk is absorbed
+in turn, then the state is permuted before continuing. After any final
+partial chunk is absorbed, the updated counter is returned ready for the
+next gimli_absorb() or gimli_pad() call.
 
 gimli_decrypt() and gimli_encrypt() operate like gimli_absorb(), but also
 transform the data based on the duplex state before/after absorbing it, as
 described for the NIST AEAD mode.
 
-gimli_squeeze(state, offset, buffer, length) extracts bytes from the duplex
-state into the buffer, permuting the state after each 16-byte chunk and
-returning the new offset depending on the length of the final partial chunk.
+gimli_squeeze(state, counter, buffer, length) extracts bytes from the duplex
+state into the buffer, permuting the state after each 16-byte chunk. After
+any final partial chunk is squeezed, the updated counter is returned.
 
-To prevent extension attacks, call gimli_pad(state, offset) after a variable
-length message has been absorbed, encrypted, or decrypted. It pads the final
-chunk then forks the capacity part of the state before permuting it, as
-described in the Gimli NIST submission. The returned offset is always zero.
+To prevent extension attacks, call gimli_pad(state, counter) after a
+variable length message has been absorbed, encrypted, or decrypted. It pads
+the final partial/empty chunk then forks the capacity part of the state
+before permuting it, as described in the Gimli NIST submission. The counter
+will advance to the next multiple of 16 bytes.
 
-gimli_ratchet(state, offset) irreversibly ratchets the duplex state by
+gimli_ratchet(state, counter) irreversibly ratchets the duplex state by
 zeroing the rate portion of the state and permuting, thus ensuring session
 forward secrecy and preventing rollback even from a completely compromised
-state. As exactly 16 bytes are cleared, offset is unchanged.
+state. As exactly 16 bytes are cleared, the counter will advance by 16.
 
 For validating authentication tags, gimli_compare(a, b, length) is provided.
 It compares two byte arrays in constant time, returning 0 for equality, -1
 otherwise. If a or b is null, the other argument is compared with zero.
+
+Although the counter is often useful as a sequence number for more complex
+protocols, gimli.h only cares about the four lowest bits for alignment. In
+simple cases such as an authenticated encrypted box, a useful idiom is
+
+  gimli_absorb(state, 0, key, 32);
+  gimli_absorb(state, 0, nonce, 16);
+  gimli_pad(state, gimli_encrypt(state, 0, message, length));
+  gimli_squeeze(state, 0, tag, 16);
 
 For information on Gimli, see https://gimli.cr.yp.to/gimli-20170627.pdf and
 the documentation at https://csrc.nist.gov/projects/lightweight-cryptography

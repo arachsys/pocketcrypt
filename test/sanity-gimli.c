@@ -8,42 +8,42 @@
 
 static void chunk_absorb(gimli_t state, uint8_t *buffer, size_t length,
     size_t chunk) {
-  size_t offset = 0;
+  size_t counter = 0;
   while (chunk <= length) {
-    offset = gimli_absorb(state, offset, buffer, chunk);
+    counter = gimli_absorb(state, counter, buffer, chunk);
     buffer += chunk, length -= chunk;
   }
-  gimli_pad(state, gimli_absorb(state, offset, buffer, length));
+  gimli_pad(state, gimli_absorb(state, counter, buffer, length));
 }
 
 static void chunk_decrypt(gimli_t state, uint8_t *buffer, size_t length,
     size_t chunk) {
-  size_t offset = 0;
+  size_t counter = 0;
   while (chunk <= length) {
-    offset = gimli_decrypt(state, offset, buffer, chunk);
+    counter = gimli_decrypt(state, counter, buffer, chunk);
     buffer += chunk, length -= chunk;
   }
-  gimli_pad(state, gimli_decrypt(state, offset, buffer, length));
+  gimli_pad(state, gimli_decrypt(state, counter, buffer, length));
 }
 
 static void chunk_encrypt(gimli_t state, uint8_t *buffer, size_t length,
     size_t chunk) {
-  size_t offset = 0;
+  size_t counter = 0;
   while (chunk <= length) {
-    offset = gimli_encrypt(state, offset, buffer, chunk);
+    counter = gimli_encrypt(state, counter, buffer, chunk);
     buffer += chunk, length -= chunk;
   }
-  gimli_pad(state, gimli_encrypt(state, offset, buffer, length));
+  gimli_pad(state, gimli_encrypt(state, counter, buffer, length));
 }
 
 static void chunk_squeeze(gimli_t state, uint8_t *buffer, size_t length,
     size_t chunk) {
-  size_t offset = 0;
+  size_t counter = 0;
   while (chunk <= length) {
-    offset = gimli_squeeze(state, offset, buffer, chunk);
+    counter = gimli_squeeze(state, counter, buffer, chunk);
     buffer += chunk, length -= chunk;
   }
-  gimli_squeeze(state, offset, buffer, length);
+  gimli_squeeze(state, counter, buffer, length);
 }
 
 static void fill(void *out1, void *out2, size_t length) {
