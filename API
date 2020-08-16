@@ -6,9 +6,9 @@ manipulated here as an array of three 128-bit uint32x4_t vectors. Bytes are
 absorbed and squeezed in 16-byte chunks, treated as little-endian words to
 ensure duplex operations are independent of platform byte order.
 
-Each duplex call accepts, updates and returns a uint8_t rate offset as well
+Each duplex call accepts, updates and returns a size_t byte counter as well
 as the gimli_t state. This allows partial chunks to be seamlessly absorbed,
-squeezed, encrypted and decrypted in a streaming setting. The offset should
+squeezed, encrypted and decrypted in a streaming setting. The counter should
 be initialised as zero at the same time as the state, then passed to and
 received from each duplex operation.
 
@@ -19,12 +19,12 @@ Initialising a duplex state
 To declare a duplex state initialised to zero, use
 
   gimli_t state = { 0 };
-  uint8_t offset = 0;
+  uint8_t counter = 0;
 
 To reset an existing duplex state, use
 
   memset(state, 0, sizeof(gimli_t));
-  offset = 0;
+  counter = 0;
 
 and a gimli_t array can safely be cloned with
 
@@ -46,12 +46,11 @@ Absorbing a data buffer
 
 To absorb an arbitrary-length buffer of bytes into a duplex state, call
 
-  offset = gimli_absorb(state, offset, data, length);
+  counter = gimli_absorb(state, counter, data, length);
 
 Each chunk of 16 bytes is absorbed in turn, then the state is permuted
-before continuing. Depending on the length of any final partial chunk, the
-updated offset is returned ready to pass to the next gimli_absorb() or
-gimli_pad() call.
+before continuing. After any final partial chunk is absorbed, the updated
+counter is returned ready for the next gimli_absorb() or gimli_pad() call.
 
 
 Squeezing data into a buffer
@@ -59,11 +58,11 @@ Squeezing data into a buffer
 
 To squeeze data from a duplex state into a buffer, call
 
-  offset = gimli_squeeze(state, offset, data, length);
+  counter = gimli_squeeze(state, counter, data, length);
 
 This extracts bytes from the duplex state into the buffer, permuting the
-state after each 16-byte chunk and returning the new offset depending on the
-length of the final partial chunk.
+state after each 16-byte chunk. After any final partial chunk is squeezed,
+the updated counter is returned.
 
 
 Encrypting a data buffer
@@ -72,12 +71,12 @@ Encrypting a data buffer
 To encrypt an arbitrary-length buffer of bytes based on the current duplex
 state, for example after absorbing a shared key and nonce, call
 
-  offset = gimli_encrypt(state, offset, data, length);
+  counter = gimli_encrypt(state, counter, data, length);
 
 Each chunk of 16 bytes is absorbed in turn, the result replacing that chunk
-as ciphertext before permuting and continuing to the next chunk. Depending
-on the length of any final partial chunk, the updated offset is returned
-ready to pass to the next gimli_encrypt() or gimli_pad() call.
+as ciphertext before permuting and continuing to the next chunk. After any
+final partial chunk is encrypted, the updated counter is returned ready for
+the next gimli_encrypt() or gimli_pad() call.
 
 Remember that authentication requires a tag to be squeezed and appended
 after encrypting the padded message, so it can be checked by the receiver.
@@ -89,13 +88,13 @@ Decrypting a data buffer
 To decrypt an arbitrary-length buffer of bytes based on the current duplex
 state, for example after absorbing a shared key and nonce, call
 
-  offset = gimli_decrypt(state, offset, data, length);
+  counter = gimli_decrypt(state, counter, data, length);
 
 The rate portion of the duplex state is mixed into each chunk of 16 bytes,
 then the resulting decrypted plaintext is absorbed back into the state
-before permuting and continuing to the next chunk. Depending on the length
-of any final partial chunk, the updated offset is returned ready to pass to
-the next gimli_decrypt() or gimli_pad() call.
+before permuting and continuing to the next chunk. After any final partial
+chunk is decrypted, the updated counter is returned ready for the next
+gimli_decrypt() or gimli_pad() call.
 
 Remember that authentication requires the received tag to be checked against
 one squeezed from the duplex state after decrypting the message.
@@ -107,10 +106,10 @@ Padding the state
 To prevent extension attacks following an operation on variable-length data,
 pad the state by calling
 
-  offset = gimli_pad(state, offset);
+  counter = gimli_pad(state, counter);
 
-after the final gimli_absorb(), gimli_encrypt() or gimli_decrypt(). This
-will always return an updated offset of zero.
+after the final gimli_absorb(), gimli_encrypt() or gimli_decrypt(). The
+counter will advance to the next multiple of 16 bytes.
 
 
 Ratcheting the state
@@ -118,11 +117,11 @@ Ratcheting the state
 
 To ensure forward secrecy during a session, call
 
-  offset = gimli_ratchet(state, offset);
+  counter = gimli_ratchet(state, counter);
 
 This irreversibly ratchets the duplex state by zeroing the rate portion of
 the state and permuting, thus preventing rollback even from a completely
-compromised state. As exactly 16 bytes are cleared, offset is unchanged.
+compromised state. The counter will advance by exactly 16 bytes.
 
 
 Constant-time comparison
