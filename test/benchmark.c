@@ -2,16 +2,23 @@
 #include <stdlib.h>
 #include <time.h>
 
-#include "gimli.h"
+#include "duplex.h"
 #include "x25519.h"
 
-static gimli_t state = { 0 };
+static duplex_t state = { 0 };
 static uint8_t buffer[65536];
 
-static double permute(size_t repeat) {
+static double gimli(size_t repeat) {
   clock_t start = clock();
   for (size_t i = 0; i < repeat; i++)
-    gimli(state);
+    duplex_gimli(state);
+  return 1.0e9 * (clock() - start) / CLOCKS_PER_SEC / repeat;
+}
+
+static double xoodoo(size_t repeat) {
+  clock_t start = clock();
+  for (size_t i = 0; i < repeat; i++)
+    duplex_xoodoo(state);
   return 1.0e9 * (clock() - start) / CLOCKS_PER_SEC / repeat;
 }
 
@@ -24,19 +31,19 @@ static double speed(void (*operation)(void), size_t repeat) {
 }
 
 static void absorb(void) {
-  gimli_absorb(state, 0, buffer, sizeof(buffer));
+  duplex_absorb(state, 0, buffer, sizeof(buffer));
 }
 
 static void squeeze(void) {
-  gimli_squeeze(state, 0, buffer, sizeof(buffer));
+  duplex_squeeze(state, 0, buffer, sizeof(buffer));
 }
 
 static void encrypt(void) {
-  gimli_encrypt(state, 0, buffer, sizeof(buffer));
+  duplex_encrypt(state, 0, buffer, sizeof(buffer));
 }
 
 static void decrypt(void) {
-  gimli_decrypt(state, 0, buffer, sizeof(buffer));
+  duplex_decrypt(state, 0, buffer, sizeof(buffer));
 }
 
 static double exchange(size_t repeat) {
@@ -66,15 +73,17 @@ int main(void) {
   for (size_t i = 0; i < sizeof(buffer); i++)
     buffer[i] = (uint8_t) i;
 
-  printf("Benchmark: gimli permutes in %0.1f ns\n", permute(1 << 21));
-  printf("Benchmark: gimli absorbs at %0.1f MB/s\n", speed(absorb, 512));
-  printf("Benchmark: gimli squeezes at %0.1f MB/s\n", speed(squeeze, 512));
-  printf("Benchmark: gimli encrypts at %0.1f MB/s\n", speed(encrypt, 512));
-  printf("Benchmark: gimli decrypts at %0.1f MB/s\n\n", speed(decrypt, 512));
+  printf("Gimli permutes in %0.1f ns\n", gimli(1 << 21));
+  printf("Xoodoo permutes in %0.1f ns\n\n", xoodoo(1 << 21));
 
-  printf("Benchmark: x25519 exchanges in %0.1f us\n", exchange(1024));
-  printf("Benchmark: x25519 signs in %0.1f us\n", sign(1024));
-  printf("Benchmark: x25519 verifies in %0.1f us\n\n", verify(1024));
+  printf("Gimli duplex absorbs at %0.1f MB/s\n", speed(absorb, 512));
+  printf("Gimli duplex squeezes at %0.1f MB/s\n", speed(squeeze, 512));
+  printf("Gimli duplex encrypts at %0.1f MB/s\n", speed(encrypt, 512));
+  printf("Gimli duplex decrypts at %0.1f MB/s\n\n", speed(decrypt, 512));
+
+  printf("X25519 exchanges in %0.1f us\n", exchange(1024));
+  printf("X25519 signs in %0.1f us\n", sign(1024));
+  printf("X25519 verifies in %0.1f us\n\n", verify(1024));
 
   return EXIT_SUCCESS;
 }
