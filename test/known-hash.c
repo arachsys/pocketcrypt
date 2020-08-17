@@ -3,7 +3,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#include "gimli.h"
+#define duplex_permute duplex_gimli
+#include "duplex.h"
 
 const char *known[] = {
   "27ae20e95fbc2bf01e972b0015eea431c20fc8818f25bc6dbe66232230db352f",
@@ -1048,9 +1049,9 @@ int main(void) {
     in[i] = (uint8_t) i;
 
   for (size_t length = 0; length <= max; length++) {
-    gimli_t state = { 0 };
-    gimli_pad(state, gimli_absorb(state, 0, in, length));
-    gimli_squeeze(state, 0, out, 32);
+    duplex_t state = { 0 };
+    duplex_pad(state, duplex_absorb(state, 0, in, length));
+    duplex_squeeze(state, 0, out, 32);
     if (check(out, known[length])) /* variable time */
       errx(EXIT_FAILURE, "Known hash failure with %zd-byte input", length);
   }

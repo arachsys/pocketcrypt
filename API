@@ -1,16 +1,22 @@
-gimli.h
-=======
+duplex.h
+========
 
-The Gimli permutation operates over a state of twelve 32-bit words,
-manipulated here as an array of three 128-bit uint32x4_t vectors. Bytes are
-absorbed and squeezed in 16-byte chunks, treated as little-endian words to
-ensure duplex operations are independent of platform byte order.
+The Gimli and Xoodoo permutations operate over a state of twelve 32-bit
+words, manipulated here as an array of three 128-bit uint32x4_t vectors.
+Bytes are absorbed and squeezed in 16-byte chunks, treated as little-endian
+words to ensure duplex operations are independent of platform byte order.
 
 Each duplex call accepts, updates and returns a size_t byte counter as well
-as the gimli_t state. This allows partial chunks to be seamlessly absorbed,
+as the duplex_t state. This allows partial chunks to be seamlessly absorbed,
 squeezed, encrypted and decrypted in a streaming setting. The counter should
 be initialised as zero at the same time as the state, then passed to and
 received from each duplex operation.
+
+Define duplex_permute as duplex_gimli or duplex_xoodoo before including
+duplex.h to explictly select the permutation. The default is duplex_gimli.
+
+duplex_rate is defined as constant size_t 16, the size in bytes of the rate
+portion of the duplex state, useful to avoid magic numbers in client code.
 
 
 Initialising a duplex state
@@ -18,17 +24,17 @@ Initialising a duplex state
 
 To declare a duplex state initialised to zero, use
 
-  gimli_t state = { 0 };
+  duplex_t state = { 0 };
   uint8_t counter = 0;
 
 To reset an existing duplex state, use
 
-  memset(state, 0, sizeof(gimli_t));
+  memset(state, 0, sizeof(duplex_t));
   counter = 0;
 
-and a gimli_t array can safely be cloned with
+and a duplex_t array can safely be cloned with
 
-  memcpy(new, old, sizeof(gimli_t));
+  memcpy(new, old, sizeof(duplex_t));
 
 
 Permuting a duplex state
@@ -36,7 +42,7 @@ Permuting a duplex state
 
 To directly permute a duplex state, use
 
-  gimli(state);
+  duplex_permute(state);
 
 Typically this is bundled into the higher-level duplex operations below.
 
@@ -46,11 +52,11 @@ Absorbing a data buffer
 
 To absorb an arbitrary-length buffer of bytes into a duplex state, call
 
-  counter = gimli_absorb(state, counter, data, length);
+  counter = duplex_absorb(state, counter, data, length);
 
 Each chunk of 16 bytes is absorbed in turn, then the state is permuted
 before continuing. After any final partial chunk is absorbed, the updated
-counter is returned ready for the next gimli_absorb() or gimli_pad() call.
+counter is returned ready for the next duplex_absorb() or duplex_pad() call.
 
 
 Squeezing data into a buffer
@@ -58,7 +64,7 @@ Squeezing data into a buffer
 
 To squeeze data from a duplex state into a buffer, call
 
-  counter = gimli_squeeze(state, counter, data, length);
+  counter = duplex_squeeze(state, counter, data, length);
 
 This extracts bytes from the duplex state into the buffer, permuting the
 state after each 16-byte chunk. After any final partial chunk is squeezed,
@@ -71,12 +77,12 @@ Encrypting a data buffer
 To encrypt an arbitrary-length buffer of bytes based on the current duplex
 state, for example after absorbing a shared key and nonce, call
 
-  counter = gimli_encrypt(state, counter, data, length);
+  counter = duplex_encrypt(state, counter, data, length);
 
 Each chunk of 16 bytes is absorbed in turn, the result replacing that chunk
 as ciphertext before permuting and continuing to the next chunk. After any
 final partial chunk is encrypted, the updated counter is returned ready for
-the next gimli_encrypt() or gimli_pad() call.
+the next duplex_encrypt() or duplex_pad() call.
 
 Remember that authentication requires a tag to be squeezed and appended
 after encrypting the padded message, so it can be checked by the receiver.
@@ -88,13 +94,13 @@ Decrypting a data buffer
 To decrypt an arbitrary-length buffer of bytes based on the current duplex
 state, for example after absorbing a shared key and nonce, call
 
-  counter = gimli_decrypt(state, counter, data, length);
+  counter = duplex_decrypt(state, counter, data, length);
 
 The rate portion of the duplex state is mixed into each chunk of 16 bytes,
 then the resulting decrypted plaintext is absorbed back into the state
 before permuting and continuing to the next chunk. After any final partial
 chunk is decrypted, the updated counter is returned ready for the next
-gimli_decrypt() or gimli_pad() call.
+duplex_decrypt() or duplex_pad() call.
 
 Remember that authentication requires the received tag to be checked against
 one squeezed from the duplex state after decrypting the message.
@@ -106,9 +112,9 @@ Padding the state
 To prevent extension attacks following an operation on variable-length data,
 pad the state by calling
 
-  counter = gimli_pad(state, counter);
+  counter = duplex_pad(state, counter);
 
-after the final gimli_absorb(), gimli_encrypt() or gimli_decrypt(). The
+after the final duplex_absorb(), duplex_encrypt() or duplex_decrypt(). The
 counter will advance to the next multiple of 16 bytes.
 
 
@@ -117,7 +123,7 @@ Ratcheting the state
 
 To ensure forward secrecy during a session, call
 
-  counter = gimli_ratchet(state, counter);
+  counter = duplex_ratchet(state, counter);
 
 This irreversibly ratchets the duplex state by zeroing the rate portion of
 the state and permuting, thus preventing rollback even from a completely
@@ -129,7 +135,7 @@ Constant-time comparison
 
 To compare two equal-sized byte arrays in constant time, call
 
-  gimli_compare(a, b, length);
+  duplex_compare(a, b, length);
 
 This returns 0 for equality, -1 otherwise. If a or b is null, the other
 argument is compared with zero.

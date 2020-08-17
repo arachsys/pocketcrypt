@@ -4,7 +4,8 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "gimli.h"
+#define duplex_permute duplex_gimli
+#include "duplex.h"
 
 const char *known[] = {
   "14da9bb7120bf58b985a8e00fdeba15b",
@@ -1112,8 +1113,8 @@ static int check(uint8_t *in, const char *hex) {
 }
 
 int main(void) {
-  gimli_t state;
-  uint8_t in[32], tag[16], out[sizeof(in) + sizeof(tag)];
+  duplex_t state;
+  uint8_t in[32], tag[duplex_rate], out[sizeof(in) + sizeof(tag)];
 
   for (size_t i = 0; i < sizeof(in); i++)
     in[i] = (uint8_t) i;
@@ -1125,20 +1126,20 @@ int main(void) {
         continue;
 
       memcpy(state, start, sizeof(state));
-      gimli(state);
-      gimli_pad(state, gimli_absorb(state, 0, in, extra));
+      duplex_permute(state);
+      duplex_pad(state, duplex_absorb(state, 0, in, extra));
       memcpy(out, in, sizeof(in));
-      gimli_pad(state, gimli_encrypt(state, 0, out, length));
-      gimli_squeeze(state, 0, out + length, sizeof(tag));
+      duplex_pad(state, duplex_encrypt(state, 0, out, length));
+      duplex_squeeze(state, 0, out + length, sizeof(tag));
       if (check(out, known[entry])) /* variable time */
         errx(EXIT_FAILURE, "Encryption failure with %zd-byte message and "
           "%zd-byte associated data", length, extra);
 
       memcpy(state, start, sizeof(state));
-      gimli(state);
-      gimli_pad(state, gimli_absorb(state, 0, in, extra));
-      gimli_pad(state, gimli_decrypt(state, 0, out, length));
-      gimli_squeeze(state, 0, tag, sizeof(tag));
+      duplex_permute(state);
+      duplex_pad(state, duplex_absorb(state, 0, in, extra));
+      duplex_pad(state, duplex_decrypt(state, 0, out, length));
+      duplex_squeeze(state, 0, tag, sizeof(tag));
       if (memcmp(in, out, length)) /* variable time */
         errx(EXIT_FAILURE, "Decryption failure with %zd-byte message and "
           "%zd-byte associated data", length, extra);

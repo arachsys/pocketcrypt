@@ -2,8 +2,8 @@ Pocketcrypt
 ===========
 
 Pocketcrypt is a tiny low-level cryptographic library containing just two
-primitives: a duplex construction using the Gimli permutation, and X25519
-for key exchange and Schnorr signatures.
+primitives: a duplex construction using the Gimli or Xoodoo permutation, and
+X25519 for key exchange and Schnorr signatures.
 
 These can be assembled in standard, well-understood ways to form high-level
 constructions such as hashes, authenticated encryption and signed messages,
@@ -17,99 +17,110 @@ code that avoids the ugly boilerplate and obfuscation of larger libraries.
 
 Although X25519 is thoroughly battle-hardened, Gimli is relatively new and
 still under scrutiny. Pocketcrypt might switch permutation if Gimli proves
-weak under cryptanalytic attack. Potential users should carefully review
-both this code and the relevant literature before considering this library.
+weak under cryptanalytic attack, and for this reason Xoodoo is included as
+an alternative. Potential users should carefully review both this code and
+the relevant literature before considering this library.
 
-To use this library, copy gimli.h, x25519.h and x25519.c into your tree.
+To use this library, copy duplex.h, x25519.h and x25519.c into your tree.
 There are no build or run-time dependencies and files are MIT-licensed for
 easy of incorporation into other projects.
 
 
-Gimli
------
+Duplex
+------
 
-gimli.h is a fast architecture-independent implementation of the Gimli
-permutation and associated duplex operations using the portable vector
-extensions supported by gcc and clang. It is a header-only library so there
-are no link-time dependencies.
+duplex.h is a fast architecture-independent implementation of the Gimli and
+Xoodoo permutations and associated duplex operations using the portable
+vector extensions supported by gcc and clang. It is a header-only library so
+there are no link-time dependencies.
 
 The permutation operates over a state of twelve 32-bit words, manipulated
 here as an array of three 128-bit uint32x4_t vectors. Bytes are absorbed and
 squeezed in 16-byte chunks, treated as little-endian words to ensure duplex
 operations are well-defined independent of platform byte order.
 
-Initialise a Gimli duplex state with gimli_t state = { 0 }.
+Define duplex_permute as duplex_gimli or duplex_xoodoo before including
+duplex.h to explictly select the permutation. The default is duplex_gimli.
 
-To apply the permutation directly, use gimli(state), but this is typically
-delegated to higher-level duplex operations.
+Initialise a duplex state with duplex_t state = { 0 }.
+
+To apply the permutation directly, use duplex_permute(state), but this is
+typically delegated to higher-level duplex operations.
 
 Each duplex call accepts, updates and returns a size_t byte counter as well
-as the gimli_t state. This allows partial chunks to be seamlessly absorbed,
+as the duplex_t state. This allows partial chunks to be seamlessly absorbed,
 squeezed, encrypted and decrypted in a streaming setting. The counter should
 be initialised as zero at the same time as the state, then passed to and
 received from each operation that follows.
 
 To absorb an arbitrary-length buffer of bytes into a duplex state, call
-gimli_absorb(state, counter, data, length). Each 16-byte chunk is absorbed
+duplex_absorb(state, counter, data, length). Each 16-byte chunk is absorbed
 in turn, then the state is permuted before continuing. After any final
 partial chunk is absorbed, the updated counter is returned ready for the
-next gimli_absorb() or gimli_pad() call.
+next duplex_absorb() or duplex_pad() call.
 
-gimli_decrypt() and gimli_encrypt() operate like gimli_absorb(), but also
+duplex_decrypt() and duplex_encrypt() operate like duplex_absorb(), but also
 transform the data based on the duplex state before/after absorbing it, as
 described for the NIST AEAD mode.
 
-gimli_squeeze(state, counter, buffer, length) extracts bytes from the duplex
-state into the buffer, permuting the state after each 16-byte chunk. After
-any final partial chunk is squeezed, the updated counter is returned.
+duplex_squeeze(state, counter, buffer, length) extracts bytes from the state
+into the buffer, permuting the state after each 16-byte chunk. After any
+final partial chunk is squeezed, the updated counter is returned.
 
-To prevent extension attacks, call gimli_pad(state, counter) after a
-variable length message has been absorbed, encrypted, or decrypted. It pads
+To prevent extension attacks, call duplex_pad(state, counter) after a
+variable-length message has been absorbed, encrypted, or decrypted. It pads
 the final partial/empty chunk then forks the capacity part of the state
 before permuting it, as described in the Gimli NIST submission. The counter
 will advance to the next multiple of 16 bytes.
 
-gimli_ratchet(state, counter) irreversibly ratchets the duplex state by
+duplex_ratchet(state, counter) irreversibly ratchets the duplex state by
 zeroing the rate portion of the state and permuting, thus ensuring session
 forward secrecy and preventing rollback even from a completely compromised
 state. As exactly 16 bytes are cleared, the counter will advance by 16.
 
-For validating authentication tags, gimli_compare(a, b, length) is provided.
+duplex_compare(a, b, length) is provided for validating authentication tags.
 It compares two byte arrays in constant time, returning 0 for equality, -1
 otherwise. If a or b is null, the other argument is compared with zero.
 
+duplex_rate is defined as constant size_t 16, the size in bytes of the rate
+portion of the duplex state, useful for avoiding magic numbers for sizes of
+nonces and authentication tags in client code.
+
 Although the counter is often useful as a sequence number for more complex
-protocols, gimli.h only cares about the four lowest bits for alignment. In
+protocols, duplex.h only cares about the four lowest bits for alignment. In
 simple cases such as an authenticated encrypted box, a useful idiom is
 
-  gimli_absorb(state, 0, key, 32);
-  gimli_absorb(state, 0, nonce, 16);
-  gimli_pad(state, gimli_encrypt(state, 0, message, length));
-  gimli_squeeze(state, 0, tag, 16);
+  duplex_absorb(state, 0, key, sizeof(key));
+  duplex_absorb(state, 0, nonce, duplex_rate);
+  duplex_pad(state, duplex_encrypt(state, 0, message, length));
+  duplex_squeeze(state, 0, tag, duplex_rate);
 
 For information on Gimli, see https://gimli.cr.yp.to/gimli-20170627.pdf and
 the documentation at https://csrc.nist.gov/projects/lightweight-cryptography
 where Gimli is a candidate. Sponge and duplex constructions are well-covered
 by https://eprint.iacr.org/2011/499.pdf including generic security analysis.
 
+For information on Xoodoo, see https://keccak.team/xoodoo.html and
+https://eprint.iacr.org/2018/767.pdf - but note the duplex construction here
+is the Gimli one rather than the more complicated Xoodyak cyclist object.
+
 
 Implementation notes
 --------------------
 
 This is a straightforward vector conversion, trivial to check against the
-reference code in the Gimli specification. There is no manual unrolling of
-loops and architecture-specific intrinsics are not needed. Despite this,
-compiled with -O3 -march=native using gcc or clang on x86-64, this
-implementation matches the performance of the hand-optimised code using SSE3
-intrinsics that was submitted by the Gimli team to NIST. Modern gcc and
-clang compile vector extensions impressively well.
+reference Gimli and Xoodoo implementations. There is no manual unrolling of
+loops and architecture-specific intrinsics are not needed, but compiled with
+-O3 -march=native using gcc or clang on x86-64, this code is as fast as the
+optimised SSE3 Gimli submitted to NIST and the Keccak team's SSE2 Xoodoo in
+XKCP. Modern gcc and clang compile vector extensions impressively well.
 
 When designing protocols, compulsory fixed-length inputs that are naturally
 multiples of 16-bytes such as keys or nonces can safely be absorbed
 unpadded. However, to avoid extension attacks, variable-length messages must
 be padded even if they happen to be an exact multiple of 16-bytes in length.
 
-Although gimli.h should work on both little- and big-endian architectures,
+Although duplex.h should work on both little- and big-endian architectures,
 it will refuse to build on a mixed-endian system even if you contrive one
 with sufficient gcc support.
 
@@ -200,6 +211,6 @@ x25519.c was originally written by Mike Hamburg as part of the STROBE
 protocol framework, and is distributed as Free Software under the terms of
 the MIT license by Cryptography Research, Inc.
 
-The rest of the software (including gimli.h) and this documentation were
+The rest of the software (including duplex.h) and this documentation were
 written by Chris Webb <chris@arachsys.com> and the combined library is
 distributed as Free Software under the terms of the MIT license in COPYING.
