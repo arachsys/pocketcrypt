@@ -133,6 +133,10 @@ Mike Hamburg's STROBE protocol framework at https://strobe.sourceforge.io/
 with minimal (largely cosmetic) changes. It is very portable but can detect
 and take advantage of 128-bit integer types where they are available.
 
+The implementation assumes constant-time integer multiplication. This is
+valid for modern x86-64 and arm64 processors, but variable-time multiplies
+on some embedded platforms may introduce timing leaks.
+
 Prototypes for available operations are in x25519.h. Code using them must be
 linked against x25519.c.
 
