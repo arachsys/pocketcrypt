@@ -23,7 +23,7 @@ the relevant literature before considering this library.
 
 To use this library, copy duplex.h, x25519.h and x25519.c into your tree.
 There are no build or run-time dependencies and files are MIT-licensed for
-easy of incorporation into other projects.
+ease of incorporation into other projects.
 
 
 Duplex
