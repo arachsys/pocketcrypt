@@ -128,10 +128,10 @@ with sufficient gcc support.
 X25519
 ------
 
-This X25519 code was originally adopted from the elegant implementation in
+This X25519 code was adapted with minor changes from the elegant code in
 Mike Hamburg's STROBE protocol framework at https://strobe.sourceforge.io/
-with minimal (largely cosmetic) changes. It is very portable but can detect
-and take advantage of 128-bit integer types where they are available.
+It is very portable but can detect and take advantage of 128-bit integer
+types where they are available.
 
 The implementation assumes constant-time integer multiplication. This is
 valid for modern x86-64 and arm64 processors, but variable-time multiplies

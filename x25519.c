@@ -1,5 +1,5 @@
 /* x25519.c from Pocketcrypt: https://github.com/arachsys/pocketcrypt */
-/* Adopted from Mike Hamburg's STROBE: https://strobe.sourceforge.io/ */
+/* Adapted from Mike Hamburg's STROBE: https://strobe.sourceforge.io/ */
 
 #include <stdint.h>
 #include <string.h>
@@ -30,144 +30,121 @@ typedef int64_t sdlimb_t;
 typedef limb_t element_t[LIMBS];
 typedef limb_t scalar_t[LIMBS];
 
-static inline limb_t umaal(limb_t *carry, limb_t acc, limb_t mand,
-    limb_t mier) {
-  dlimb_t result = (dlimb_t) mand * mier + acc + *carry;
-  *carry = result >> WBITS;
-  return result;
-}
-
-static inline limb_t adc(limb_t *carry, limb_t acc, limb_t mand) {
-  dlimb_t total = (dlimb_t) *carry + acc + mand;
-  *carry = total >> WBITS;
-  return total;
-}
-
-static inline limb_t adc0(limb_t *carry, limb_t acc) {
-  dlimb_t total = (dlimb_t) *carry + acc;
-  *carry = total >> WBITS;
-  return total;
-}
-
 static void propagate(element_t x, limb_t over) {
   over = x[LIMBS - 1] >> (WBITS - 1) | over << 1;
   x[LIMBS - 1] &= ~((limb_t) 1 << (WBITS - 1));
 
-  limb_t carry = over * 19;
-  for (unsigned i = 0; i < LIMBS; i++)
-    x[i] = adc0(&carry, x[i]);
+  dlimb_t carry = over * 19;
+  for (uint8_t i = 0; i < LIMBS; i++)
+    x[i] = carry = carry + x[i], carry >>= WBITS;
 }
 
 static void add(element_t out, const element_t a, const element_t b) {
-  limb_t carry = 0;
-  for (unsigned i = 0; i < LIMBS; i++)
-    out[i] = adc(&carry, a[i], b[i]);
+  dlimb_t carry = 0;
+  for (uint8_t i = 0; i < LIMBS; i++)
+    out[i] = carry = carry + a[i] + b[i], carry >>= WBITS;
   propagate(out, carry);
 }
 
 static void sub(element_t out, const element_t a, const element_t b) {
   sdlimb_t carry = -38;
-  for (unsigned i = 0; i < LIMBS; i++) {
-    out[i] = carry = carry + a[i] - b[i];
-    carry >>= WBITS;
-  }
+  for (uint8_t i = 0; i < LIMBS; i++)
+    out[i] = carry = carry + a[i] - b[i], carry >>= WBITS;
   propagate(out, 1 + carry);
 }
 
-static inline void swapin(limb_t *out, const uint8_t *in) {
-  for (unsigned i = 0, j = 0; i < LIMBS; i++) {
-    out[i] = 0;
-    for (unsigned k = 0; k < sizeof(limb_t) << 3; k += 8)
-      out[i] |= (limb_t) in[j++] << k;
-  }
-}
-
-static inline void swapout(uint8_t *out, limb_t *in) {
-  for (unsigned i = 0, j = 0; i < LIMBS; i++) {
-    for (unsigned k = 0; k < sizeof(limb_t) << 3; k += 8)
-      out[j++] = (uint8_t) (in[i] >> k);
-  }
-}
-
-static void mul(element_t out, const element_t a, const element_t b,
-    unsigned blen) {
+static void mul(element_t out, const element_t a, const element_t b) {
   limb_t accum[2 * LIMBS] = { 0 };
-  for (unsigned i = 0; i < blen; i++) {
-    limb_t carry = 0, mand = b[i];
-    for (unsigned j = 0; j < LIMBS; j++)
-      accum[i + j] = umaal(&carry, accum[i + j], mand, a[j]);
+  for (uint8_t i = 0; i < LIMBS; i++) {
+    dlimb_t carry = 0;
+    for (uint8_t j = 0; j < LIMBS; j++) {
+      carry += (dlimb_t) b[i] * a[j] + accum[i + j];
+      accum[i + j] = carry, carry >>= WBITS;
+    }
     accum[i + LIMBS] = carry;
   }
 
-  limb_t carry = 0, mand = 38;
-  for (unsigned j = 0; j < LIMBS; j++)
-     out[j] = umaal(&carry, accum[j], mand, accum[j + LIMBS]);
+  dlimb_t carry = 0;
+  for (uint8_t i = 0; i < LIMBS; i++) {
+    carry += (dlimb_t) 38 * accum[i + LIMBS] + accum[i];
+    out[i] = carry, carry >>= WBITS;
+  }
   propagate(out, carry);
 }
 
-static void sqr(element_t out, const element_t a) {
-  mul(out, a, a, LIMBS);
-}
-
-static void mul1(element_t out, const element_t a) {
-  mul(out, a, out, LIMBS);
-}
-
-static void sqr1(element_t a) {
-  mul1(a, a);
+static void mul1(element_t out, const element_t a, const limb_t b) {
+  dlimb_t carry = 0;
+  for (uint8_t i = 0; i < LIMBS; i++)
+    out[i] = carry += (dlimb_t) b * a[i], carry >>= WBITS;
+  carry *= 38;
+  for (uint8_t i = 0; i < LIMBS; i++)
+    out[i] = carry += out[i], carry >>= WBITS;
+  propagate(out, carry);
 }
 
 static void condswap(limb_t a[2*LIMBS], limb_t b[2*LIMBS], limb_t mask) {
-  for (unsigned i = 0; i < 2 * LIMBS; i++) {
+  for (uint8_t i = 0; i < 2 * LIMBS; i++) {
     limb_t xor = (a[i] ^ b[i]) & mask;
-    a[i] ^= xor;
-    b[i] ^= xor;
+    a[i] ^= xor, b[i] ^= xor;
   }
 }
 
 static limb_t canon(element_t x) {
-  limb_t carry0 = 19;
-  for (unsigned i = 0; i < LIMBS; i++)
-    x[i] = adc0(&carry0, x[i]);
+  dlimb_t carry0 = 19;
+  for (uint8_t i = 0; i < LIMBS; i++)
+    x[i] = carry0 += x[i], carry0 >>= WBITS;
   propagate(x, carry0);
 
-  sdlimb_t carry = -19;
   limb_t result = 0;
-  for (unsigned i = 0; i < LIMBS; i++) {
-    result |= x[i] = carry += x[i];
-    carry >>= WBITS;
-  }
+  sdlimb_t carry = -19;
+  for (uint8_t i = 0; i < LIMBS; i++)
+    result |= x[i] = carry += x[i], carry >>= WBITS;
   return ((dlimb_t) result - 1) >> WBITS;
 }
 
 static void ladder1(element_t xs[5]) {
-  const limb_t a24[1] = { 121665 };
+  const limb_t a24 = 121665;
   limb_t *x2 = xs[0], *z2 = xs[1], *x3 = xs[2], *z3 = xs[3], *t1 = xs[4];
 
   add(t1, x2, z2);
   sub(z2, x2, z2);
   add(x2, x3, z3);
   sub(z3, x3, z3);
-  mul1(z3, t1);
-  mul1(x2, z2);
+  mul(z3, t1, z3);
+  mul(x2, z2, x2);
   add(x3, z3, x2);
   sub(z3, z3, x2);
-  sqr1(t1);
-  sqr1(z2);
+  mul(t1, t1, t1);
+  mul(z2, z2, z2);
   sub(x2, t1, z2);
-  mul(z2, x2, a24, sizeof(a24) / sizeof(limb_t));
+  mul1(z2, x2, a24);
   add(z2, z2, t1);
 }
 
 static void ladder2(element_t xs[5], const element_t x1) {
   limb_t *x2 = xs[0], *z2 = xs[1], *x3 = xs[2], *z3 = xs[3], *t1 = xs[4];
 
-  sqr1(z3);
-  mul1(z3, x1);
-  sqr1(x3);
-  mul1(z2, x2);
+  mul(z3, z3, z3);
+  mul(z3, x1, z3);
+  mul(x3, x3, x3);
+  mul(z2, x2, z2);
   sub(x2, t1, x2);
-  mul1(x2, t1);
+  mul(x2, t1, x2);
+}
+
+static void swapin(limb_t *out, const uint8_t *in) {
+  for (uint8_t i = 0; i < LIMBS; i++) {
+    out[i] = (limb_t) *in++;
+    for (uint8_t j = 8; j < WBITS; j += 8)
+      out[i] |= (limb_t) *in++ << j;
+  }
+}
+
+static void swapout(uint8_t *out, limb_t *in) {
+  for (uint8_t i = 0; i < LIMBS; i++) {
+    for (uint8_t j = 0; j < WBITS; j += 8)
+      *out++ = (uint8_t) (in[i] >> j);
+  }
 }
 
 static void x25519_core(element_t xs[5], const x25519_t scalar,
@@ -182,7 +159,7 @@ static void x25519_core(element_t xs[5], const x25519_t scalar,
 
   for (int i = 255; i >= 0; i--) {
     uint8_t byte = scalar[i >> 3];
-    limb_t doswap = - (limb_t) ((byte >> (i % 8)) & 1);
+    limb_t doswap = -((limb_t) byte >> (i & 7) & 1);
     condswap(x2, x3, swap ^ doswap);
     swap = doswap;
 
@@ -215,13 +192,13 @@ int x25519(x25519_t out, const x25519_t scalar, const x25519_t point) {
   x25519_core(xs, scalar, point);
   limb_t *x2 = xs[0], *z2 = xs[1], *z3 = xs[3], *p = z2;
 
-  for (unsigned i = 0; i < 13; i++) {
+  for (uint8_t i = 0; i < 13; i++) {
     limb_t *a = xs[steps[i].a];
-    for (unsigned j = steps[i].n; j > 0; j--)
-      sqr(a, p), p = a;
-    mul1(a, xs[steps[i].c]);
+    for (uint8_t j = steps[i].n; j > 0; j--)
+      mul(a, p, p), p = a;
+    mul(a, xs[steps[i].c], a);
   }
-  mul1(x2, z3);
+  mul(x2, z3, x2);
 
   limb_t result = canon(x2);
   swapout(out, x2);
@@ -236,30 +213,30 @@ static void montmul(scalar_t out, const scalar_t a,
     LIMB(0x0000000000000000), LIMB(0x1000000000000000)
   };
 
-  limb_t highcarry = 0;
-  for (unsigned i = 0; i < LIMBS; i++) {
-    limb_t carry1 = 0, carry2 = 0, mand1 = a[i], mand2 = montgomery;
-    for (unsigned j = 0; j < LIMBS; j++) {
-      limb_t acc = out[j];
-      acc = umaal(&carry1, acc, mand1, b[j]);
+  dlimb_t highcarry = 0;
+  for (uint8_t i = 0; i < LIMBS; i++) {
+    dlimb_t carry1 = 0, carry2 = 0;
+    limb_t mand1 = a[i], mand2 = montgomery;
+    for (uint8_t j = 0; j < LIMBS; j++) {
+      carry1 += (dlimb_t) mand1 * b[j] + out[j];
       if (j == 0)
-        mand2 *= acc;
-      acc = umaal(&carry2, acc, mand2, p[j]);
+        mand2 *= (limb_t) carry1;
+      carry2 += (dlimb_t) mand2 * p[j] + (limb_t) carry1;
       if (j > 0)
-        out[j - 1] = acc;
+        out[j - 1] = carry2;
+      carry1 >>= WBITS, carry2 >>= WBITS;
     }
-    out[LIMBS - 1] = adc(&highcarry, carry1, carry2);
+    out[LIMBS - 1] = highcarry += carry1 + carry2;
+    highcarry >>= WBITS;
   }
 
   sdlimb_t scarry = 0;
-  for (unsigned i = 0; i < LIMBS; i++) {
-    out[i] = scarry = scarry + out[i] - p[i];
-    scarry >>= WBITS;
-  }
+  for (uint8_t i = 0; i < LIMBS; i++)
+    out[i] = scarry = scarry + out[i] - p[i], scarry >>= WBITS;
 
-  limb_t carry1 = 0, carry2 = - (scarry + highcarry);
-  for (unsigned i = 0; i < LIMBS; i++)
-    out[i] = umaal(&carry1, out[i], carry2, p[i]);
+  dlimb_t addp = -(scarry + highcarry), carry = 0;
+  for (uint8_t i = 0; i < LIMBS; i++)
+    out[i] = carry += addp * p[i] + out[i], carry >>= WBITS;
 }
 
 void x25519_sign(x25519_t response, const x25519_t challenge,
@@ -289,16 +266,14 @@ static limb_t x25519_verify_core(element_t xs[5], const limb_t *other1,
   memcpy(x3, other1, 2 * sizeof(element_t));
   ladder1(xs);
 
-  mul1(z2, other1);
-  mul1(z2, other1 + LIMBS);
-  mul1(z2, xo2);
+  mul(z2, other1, z2);
+  mul(z2, other1 + LIMBS, z2);
+  mul(z2, xo2, z2);
+  mul1(z2, z2, 16);
 
-  const limb_t sixteen = 16;
-  mul(z2, z2, &sixteen, 1);
-
-  mul1(z3, xo2);
+  mul(z3, xo2, z3);
   sub(z3, z3, x3);
-  sqr1(z3);
+  mul(z3, z3, z3);
 
   sub(z3, z3, z2);
   return canon(z2) | ~canon(z3);
