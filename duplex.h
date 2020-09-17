@@ -34,7 +34,7 @@ typedef uint8_t uint8x16_t __attribute__((vector_size(16)));
 typedef uint32_t uint32x4_t __attribute__((vector_size(16)));
 typedef uint32x4_t duplex_t[3];
 
-const size_t duplex_rate = 16;
+static const size_t duplex_rate = 16;
 
 static inline uint32x4_t duplex_rotate24(uint32x4_t row) {
   return (uint32x4_t) duplex_swap((uint8x16_t) row, duplex_r24);
