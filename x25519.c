@@ -39,26 +39,26 @@ static void propagate(element_t x, limb_t over) {
     x[i] = carry = carry + x[i], carry >>= WBITS;
 }
 
-static void add(element_t out, const element_t a, const element_t b) {
+static void add(element_t out, const element_t x, const element_t y) {
   dlimb_t carry = 0;
   for (uint8_t i = 0; i < LIMBS; i++)
-    out[i] = carry = carry + a[i] + b[i], carry >>= WBITS;
+    out[i] = carry = carry + x[i] + y[i], carry >>= WBITS;
   propagate(out, carry);
 }
 
-static void sub(element_t out, const element_t a, const element_t b) {
+static void sub(element_t out, const element_t x, const element_t y) {
   sdlimb_t carry = -38;
   for (uint8_t i = 0; i < LIMBS; i++)
-    out[i] = carry = carry + a[i] - b[i], carry >>= WBITS;
+    out[i] = carry = carry + x[i] - y[i], carry >>= WBITS;
   propagate(out, 1 + carry);
 }
 
-static void mul(element_t out, const element_t a, const element_t b) {
+static void mul(element_t out, const element_t x, const element_t y) {
   limb_t accum[2 * LIMBS] = { 0 };
   for (uint8_t i = 0; i < LIMBS; i++) {
     dlimb_t carry = 0;
     for (uint8_t j = 0; j < LIMBS; j++) {
-      carry += (dlimb_t) b[i] * a[j] + accum[i + j];
+      carry += (dlimb_t) y[i] * x[j] + accum[i + j];
       accum[i + j] = carry, carry >>= WBITS;
     }
     accum[i + LIMBS] = carry;
@@ -72,20 +72,20 @@ static void mul(element_t out, const element_t a, const element_t b) {
   propagate(out, carry);
 }
 
-static void mul1(element_t out, const element_t a, const limb_t b) {
+static void mul1(element_t out, const element_t x, const limb_t y) {
   dlimb_t carry = 0;
   for (uint8_t i = 0; i < LIMBS; i++)
-    out[i] = carry += (dlimb_t) b * a[i], carry >>= WBITS;
+    out[i] = carry += (dlimb_t) y * x[i], carry >>= WBITS;
   carry *= 38;
   for (uint8_t i = 0; i < LIMBS; i++)
     out[i] = carry += out[i], carry >>= WBITS;
   propagate(out, carry);
 }
 
-static void condswap(limb_t a[2*LIMBS], limb_t b[2*LIMBS], limb_t mask) {
+static void condswap(limb_t x[2*LIMBS], limb_t y[2*LIMBS], limb_t mask) {
   for (uint8_t i = 0; i < 2 * LIMBS; i++) {
-    limb_t xor = (a[i] ^ b[i]) & mask;
-    a[i] ^= xor, b[i] ^= xor;
+    limb_t xor = (x[i] ^ y[i]) & mask;
+    x[i] ^= xor, y[i] ^= xor;
   }
 }
 
@@ -110,8 +110,8 @@ static void ladder1(element_t xs[5]) {
   sub(z2, x2, z2);
   add(x2, x3, z3);
   sub(z3, x3, z3);
-  mul(z3, t1, z3);
-  mul(x2, z2, x2);
+  mul(z3, z3, t1);
+  mul(x2, x2, z2);
   add(x3, z3, x2);
   sub(z3, z3, x2);
   mul(t1, t1, t1);
@@ -125,11 +125,11 @@ static void ladder2(element_t xs[5], const element_t x1) {
   limb_t *x2 = xs[0], *z2 = xs[1], *x3 = xs[2], *z3 = xs[3], *t1 = xs[4];
 
   mul(z3, z3, z3);
-  mul(z3, x1, z3);
+  mul(z3, z3, x1);
   mul(x3, x3, x3);
-  mul(z2, x2, z2);
+  mul(z2, z2, x2);
   sub(x2, t1, x2);
-  mul(x2, t1, x2);
+  mul(x2, x2, t1);
 }
 
 static void swapin(limb_t *out, const uint8_t *in) {
@@ -154,8 +154,8 @@ static void x25519_core(element_t xs[5], const x25519_t scalar,
 
   limb_t swap = 0, *x2 = xs[0], *x3 = xs[2], *z3 = xs[3];
   memset(xs, 0, 4 * sizeof(element_t));
-  x2[0] = z3[0] = 1;
   memcpy(x3, x1, sizeof(element_t));
+  x2[0] = z3[0] = 1;
 
   for (int i = 255; i >= 0; i--) {
     uint8_t byte = scalar[i >> 3];
@@ -164,7 +164,7 @@ static void x25519_core(element_t xs[5], const x25519_t scalar,
     swap = doswap;
 
     ladder1(xs);
-    ladder2(xs, (const limb_t *) x1);
+    ladder2(xs, x1);
   }
   condswap(x2, x3, swap);
 }
@@ -189,8 +189,8 @@ int x25519(x25519_t out, const x25519_t scalar, const x25519_t point) {
   };
 
   element_t xs[5];
-  x25519_core(xs, scalar, point);
   limb_t *x2 = xs[0], *z2 = xs[1], *z3 = xs[3], *p = z2;
+  x25519_core(xs, scalar, point);
 
   for (uint8_t i = 0; i < 13; i++) {
     limb_t *a = xs[steps[i].a];
@@ -198,15 +198,15 @@ int x25519(x25519_t out, const x25519_t scalar, const x25519_t point) {
       mul(a, p, p), p = a;
     mul(a, xs[steps[i].c], a);
   }
-  mul(x2, z3, x2);
+  mul(x2, x2, z3);
 
   limb_t result = canon(x2);
   swapout(out, x2);
   return result;
 }
 
-static void montmul(scalar_t out, const scalar_t a,
-    const scalar_t b) {
+static void montmul(scalar_t out, const scalar_t x,
+    const scalar_t y) {
   const limb_t montgomery = (limb_t) 0xd2b51da312547e1b;
   const scalar_t p = {
     LIMB(0x5812631a5cf5d3ed), LIMB(0x14def9dea2f79cd6),
@@ -216,9 +216,9 @@ static void montmul(scalar_t out, const scalar_t a,
   dlimb_t highcarry = 0;
   for (uint8_t i = 0; i < LIMBS; i++) {
     dlimb_t carry1 = 0, carry2 = 0;
-    limb_t mand1 = a[i], mand2 = montgomery;
+    limb_t mand1 = x[i], mand2 = montgomery;
     for (uint8_t j = 0; j < LIMBS; j++) {
-      carry1 += (dlimb_t) mand1 * b[j] + out[j];
+      carry1 += (dlimb_t) mand1 * y[j] + out[j];
       if (j == 0)
         mand2 *= (limb_t) carry1;
       carry2 += (dlimb_t) mand2 * p[j] + (limb_t) carry1;
@@ -257,21 +257,20 @@ void x25519_sign(x25519_t response, const x25519_t challenge,
   swapout(response, scalar2);
 }
 
-static limb_t x25519_verify_core(element_t xs[5], const limb_t *other1,
+static limb_t x25519_verify_core(element_t xs[5], const element_t other1[2],
     const x25519_t other2) {
-  limb_t *z2 = xs[1], *x3 = xs[2], *z3 = xs[3];
-  element_t xo2;
-  swapin(xo2, other2);
+  limb_t *z2 = xs[1], *x3 = xs[2], *z3 = xs[3], *t1 = xs[4];
 
-  memcpy(x3, other1, 2 * sizeof(element_t));
+  memcpy(xs + 2, other1, 2 * sizeof(element_t));
   ladder1(xs);
+  mul(z2, z2, other1[0]);
+  mul(z2, z2, other1[1]);
 
-  mul(z2, other1, z2);
-  mul(z2, other1 + LIMBS, z2);
-  mul(z2, xo2, z2);
+  swapin(t1, other2);
+  mul(z2, z2, t1);
   mul1(z2, z2, 16);
 
-  mul(z3, xo2, z3);
+  mul(z3, z3, t1);
   sub(z3, z3, x3);
   mul(z3, z3, z3);
 
@@ -282,7 +281,7 @@ static limb_t x25519_verify_core(element_t xs[5], const limb_t *other1,
 int x25519_verify(const x25519_t response, const x25519_t challenge,
     const x25519_t ephemeral, const x25519_t identity) {
   element_t xs[7];
-  x25519_core(&xs[0], challenge, identity);
-  x25519_core(&xs[2], response, x25519_generator);
-  return x25519_verify_core(&xs[2], xs[0], ephemeral);
+  x25519_core(xs, challenge, identity);
+  x25519_core(xs + 2, response, x25519_generator);
+  return x25519_verify_core(xs + 2, xs, ephemeral);
 }
