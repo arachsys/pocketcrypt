@@ -82,6 +82,13 @@ static void mul1(element_t out, const element_t x, const limb_t y) {
   propagate(out, carry);
 }
 
+static void mulsqrn(element_t out, const element_t x, const element_t y,
+    uint8_t n) {
+  for (uint8_t i = 0; i < n; i++)
+    mul(out, x, x), x = out;
+  mul(out, out, y);
+}
+
 static void condswap(limb_t x[2*LIMBS], limb_t y[2*LIMBS], limb_t mask) {
   for (uint8_t i = 0; i < 2 * LIMBS; i++) {
     limb_t xor = (x[i] ^ y[i]) & mask;
@@ -170,34 +177,23 @@ static void x25519_core(element_t xs[5], const x25519_t scalar,
 }
 
 int x25519(x25519_t out, const x25519_t scalar, const x25519_t point) {
-  static const struct {
-    uint8_t a, c, n;
-  } steps[13] = {
-    { 2, 1, 1 },
-    { 2, 1, 1 },
-    { 4, 2, 3 },
-    { 2, 4, 6 },
-    { 3, 1, 1 },
-    { 3, 2, 12 },
-    { 4, 3, 25 },
-    { 2, 3, 25 },
-    { 2, 4, 50 },
-    { 3, 2, 125 },
-    { 3, 1, 2 },
-    { 3, 1, 2 },
-    { 3, 1, 1 }
-  };
-
   element_t xs[5];
-  limb_t *x2 = xs[0], *z2 = xs[1], *z3 = xs[3], *p = z2;
+  limb_t *x2 = xs[0], *z2 = xs[1], *x3 = xs[2], *z3 = xs[3], *t1 = xs[4];
   x25519_core(xs, scalar, point);
 
-  for (uint8_t i = 0; i < 13; i++) {
-    limb_t *a = xs[steps[i].a];
-    for (uint8_t j = steps[i].n; j > 0; j--)
-      mul(a, p, p), p = a;
-    mul(a, xs[steps[i].c], a);
-  }
+  mulsqrn(x3, z2, z2, 1);
+  mulsqrn(x3, x3, z2, 1);
+  mulsqrn(t1, x3, x3, 3);
+  mulsqrn(x3, t1, t1, 6);
+  mulsqrn(z3, x3, z2, 1);
+  mulsqrn(z3, z3, x3, 12);
+  mulsqrn(t1, z3, z3, 25);
+  mulsqrn(x3, t1, z3, 25);
+  mulsqrn(x3, x3, t1, 50);
+  mulsqrn(z3, x3, x3, 125);
+  mulsqrn(z3, z3, z2, 2);
+  mulsqrn(z3, z3, z2, 2);
+  mulsqrn(z3, z3, z2, 1);
   mul(x2, x2, z3);
 
   limb_t result = canon(x2);
