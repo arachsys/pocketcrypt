@@ -322,16 +322,21 @@ void x25519_sign(x25519_t response, const x25519_t challenge,
   swapout(response, scalar2);
 }
 
-static limb_t x25519_verify_core(element_t xs[5], const element_t other1[2],
-    const x25519_t other2) {
-  limb_t *z2 = xs[1], *x3 = xs[2], *z3 = xs[3], *t1 = xs[4];
+int x25519_verify(const x25519_t response, const x25519_t challenge,
+    const x25519_t ephemeral, const x25519_t identity) {
+  element_t xs[7];
+  limb_t *x1 = xs[0], *z1 = xs[1];
+  limb_t *z2 = xs[3], *x3 = xs[4], *z3 = xs[5], *t1 = xs[6];
 
-  memcpy(xs + 2, other1, 2 * sizeof(element_t));
-  ladder1(xs);
-  mul(z2, z2, other1[0]);
-  mul(z2, z2, other1[1]);
+  x25519_core(xs, challenge, identity);
+  x25519_core(xs + 2, response, x25519_generator);
 
-  swapin(t1, other2);
+  memcpy(xs + 4, xs, 2 * sizeof(element_t));
+  ladder1(xs + 2);
+  mul(z2, z2, x1);
+  mul(z2, z2, z1);
+
+  swapin(t1, ephemeral);
   mul(z2, z2, t1);
   mul1(z2, z2, 16);
 
@@ -341,12 +346,4 @@ static limb_t x25519_verify_core(element_t xs[5], const element_t other1[2],
 
   sub(z3, z3, z2);
   return canon(z2) | ~canon(z3);
-}
-
-int x25519_verify(const x25519_t response, const x25519_t challenge,
-    const x25519_t ephemeral, const x25519_t identity) {
-  element_t xs[7];
-  x25519_core(xs, challenge, identity);
-  x25519_core(xs + 2, response, x25519_generator);
-  return x25519_verify_core(xs + 2, xs, ephemeral);
 }
