@@ -142,7 +142,7 @@ linked against x25519.c.
 
 Scalars and curve points represented by their Montgomery x-coordinates are
 manipulated as 32-byte little-endian arrays (x25519_t) in the standard way.
-The x25519 base point { 9, 0, 0, ... } is predefined as x25519_generator.
+The X25519 base point { 9, 0, 0, ... } is predefined as x25519_generator.
 
 Use x25519() to perform scalar multiplication of points. To generate a key
 pair (sk, pk), randomise sk then call x25519(pk, sk, x25519_generator) to
@@ -175,6 +175,29 @@ as part of key generation, the RFC bundles it into key exchange. This is
 unfortunate as it is not well-defined modulo the base point order so doesn't
 preserve group structure, causing problems if (x + y)P = xP + yP is needed,
 such as with Schnorr signatures. It is not bundled into this x25519().
+
+
+Mapping field elements to curve points
+--------------------------------------
+
+Use x25519_point() to map a field element onto a curve point using the
+Elligator 2 mapping from https://elligator.cr.yp.to/elligator-20130828.pdf
+with non-square parameter u = 2.
+
+A point on the full curve is returned, not necessarily in the prime-order
+subgroup. Scalar multiply by eight to eliminate the cofactor if needed.
+
+The map is efficiently invertible and its range is around half of the points
+on the curve. Assuming the probability of efficiently calculating discrete
+logarithms for random curve points is negligible, the same is therefore true
+for the images of random field elements under this function.
+
+This is a building block for hash-to-curve functions. For example, if two
+parties already share a secret duplex state, an ephemeral key exchange can
+be authenticated by substituting a secret point for the standard base point.
+Squeeze a uniformly-distributed x25519_t field element from the shared
+state, map it to a curve point using this function, then pick multiples of
+eight as ephemeral key-exchange secrets to avoid small subgroup attacks.
 
 
 Signatures

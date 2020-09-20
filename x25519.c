@@ -89,13 +89,6 @@ static void mulsqrn(element_t out, const element_t x, const element_t y,
   mul(out, out, y);
 }
 
-static void condswap(limb_t x[2*LIMBS], limb_t y[2*LIMBS], limb_t mask) {
-  for (uint8_t i = 0; i < 2 * LIMBS; i++) {
-    limb_t xor = (x[i] ^ y[i]) & mask;
-    x[i] ^= xor, y[i] ^= xor;
-  }
-}
-
 static limb_t canon(element_t x) {
   dlimb_t carry0 = 19;
   for (uint8_t i = 0; i < LIMBS; i++)
@@ -107,6 +100,43 @@ static limb_t canon(element_t x) {
   for (uint8_t i = 0; i < LIMBS; i++)
     result |= x[i] = carry += x[i], carry >>= WBITS;
   return ((dlimb_t) result - 1) >> WBITS;
+}
+
+static void condswap(element_t x, element_t y, limb_t mask) {
+  for (uint8_t i = 0; i < LIMBS; i++) {
+    limb_t xor = (x[i] ^ y[i]) & mask;
+    x[i] ^= xor, y[i] ^= xor;
+  }
+}
+
+static limb_t invsqrt(element_t out, const element_t x) {
+  const element_t one = { 1 }, sqrtm1 = {
+    LIMB(0xc4ee1b274a0ea0b0), LIMB(0x2f431806ad2fe478),
+    LIMB(0x2b4d00993dfbd7a7), LIMB(0x2b8324804fc1df0b)
+  };
+
+  element_t u, v, y, z;
+  mulsqrn(u, x, x, 1);
+  mulsqrn(u, u, x, 1);
+  mulsqrn(v, u, u, 3);
+  mulsqrn(u, v, v, 6);
+  mulsqrn(z, u, x, 1);
+  mulsqrn(z, z, u, 12);
+  mulsqrn(v, z, z, 25);
+  mulsqrn(u, v, z, 25);
+  mulsqrn(u, u, v, 50);
+  mulsqrn(z, u, u, 125);
+  mulsqrn(z, z, x, 2);
+
+  mul(y, z, z);
+  mul(y, y, x);
+  add(u, y, one);
+  add(v, y, sqrtm1);
+  mul(out, z, sqrtm1);
+  condswap(out, z, ~canon(u) & ~canon(v));
+
+  sub(v, y, one);
+  return ~canon(u) & ~canon(v);
 }
 
 static void ladder1(element_t xs[5]) {
@@ -159,21 +189,23 @@ static void x25519_core(element_t xs[5], const x25519_t scalar,
   element_t x1;
   swapin(x1, point);
 
-  limb_t swap = 0, *x2 = xs[0], *x3 = xs[2], *z3 = xs[3];
+  limb_t swap = 0, *x2 = xs[0], *z2 = xs[1], *x3 = xs[2], *z3 = xs[3];
   memset(xs, 0, 4 * sizeof(element_t));
   memcpy(x3, x1, sizeof(element_t));
   x2[0] = z3[0] = 1;
 
   for (int i = 255; i >= 0; i--) {
     uint8_t byte = scalar[i >> 3];
-    limb_t doswap = -((limb_t) byte >> (i & 7) & 1);
-    condswap(x2, x3, swap ^ doswap);
-    swap = doswap;
+    limb_t bit = -((limb_t) byte >> (i & 7) & 1);
+    condswap(x2, x3, swap ^ bit);
+    condswap(z2, z3, swap ^ bit);
+    swap = bit;
 
     ladder1(xs);
     ladder2(xs, x1);
   }
   condswap(x2, x3, swap);
+  condswap(z2, z3, swap);
 }
 
 int x25519(x25519_t out, const x25519_t scalar, const x25519_t point) {
@@ -199,6 +231,43 @@ int x25519(x25519_t out, const x25519_t scalar, const x25519_t point) {
   limb_t result = canon(x2);
   swapout(out, x2);
   return result;
+}
+
+void x25519_point(x25519_t out, const x25519_t element) {
+  const limb_t a = 486662;
+  const element_t zero = { 0 }, one = { 1 }, k = {
+    LIMB(0x7623c9b16be2be8d), LIMB(0xa179cff2a5a0370e),
+    LIMB(0xa965fecd840850b1), LIMB(0x28f9b6ff607c41e9)
+  };
+
+  element_t r, s, x, y, z;
+  swapin(r, element);
+
+  mul(s, r, r);
+  add(s, s, s);
+  add(x, s, one);
+  mul(y, x, x);
+  mul1(z, s, a);
+  mul1(z, z, a);
+  sub(z, z, y);
+  mul1(z, z, a);
+  mul(s, y, x);
+  mul(s, s, z);
+
+  limb_t mask = invsqrt(s, s);
+  mul1(x, s, a);
+  mul(x, x, s);
+  mul(x, x, y);
+  mul(x, x, z);
+  sub(x, zero, x);
+
+  mul(s, k, r);
+  mul(s, s, r);
+  mul(s, s, x);
+  condswap(x, s, mask);
+
+  canon(x);
+  swapout(out, x);
 }
 
 static void montmul(scalar_t out, const scalar_t x,

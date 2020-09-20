@@ -170,6 +170,17 @@ scalar. Calculate a shared secret by multipling the secret key (scalar) by
 the public key (point).
 
 
+Mapping field elements to curve points
+--------------------------------------
+
+For any field element, call
+
+  x25519_point(out, element);
+
+to map it onto a curve point using the Elligator 2 mapping with non-square
+parameter u = 2. Multiply by eight to eliminate the cofactor if needed.
+
+
 Signatures
 ----------
 

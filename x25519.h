@@ -11,6 +11,8 @@ extern const x25519_t x25519_generator;
 extern int x25519(x25519_t out, const x25519_t scalar,
   const x25519_t point);
 
+extern void x25519_point(x25519_t out, const x25519_t element);
+
 extern void x25519_sign(x25519_t response, const x25519_t challenge,
   const x25519_t ephemeral, const x25519_t identity);
 
