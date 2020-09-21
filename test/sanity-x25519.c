@@ -61,6 +61,27 @@ int main(void) {
       errx(EXIT_FAILURE, "Invalid signature successfully verified");
   }
 
+  for (size_t i = 0; i < 1000; i++) {
+    x25519_t scalar1, scalar2, inverse, point1, point2, point3;
+
+    generate(scalar1);
+    generate(scalar2);
+    x25519(point1, scalar1, x25519_generator);
+    x25519(point2, scalar2, x25519_generator);
+    x25519(point2, scalar1, point2);
+
+    x25519_invert(inverse, scalar2);
+    x25519(point3, inverse, point2);
+    if (memcmp(point1, point3, sizeof(point1)) != 0) /* variable time */
+      errx(EXIT_FAILURE, "Valid scalar inversion failed");
+
+    bitflip(scalar2);
+    x25519_invert(inverse, scalar2);
+    x25519(point3, inverse, point2);
+    if (memcmp(point1, point3, sizeof(point1)) == 0) /* variable time */
+      errx(EXIT_FAILURE, "Invalid scalar inversion succeeded");
+  }
+
   printf("Key exchange and signatures sanity-checked\n");
   return EXIT_SUCCESS;
 }

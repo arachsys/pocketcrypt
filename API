@@ -170,6 +170,17 @@ scalar. Calculate a shared secret by multipling the secret key (scalar) by
 the public key (point).
 
 
+Scalar inversion
+----------------
+
+To invert a scalar modulo the order of the X25519 base point, call
+
+  x25519_invert(out, scalar);
+
+Given the scalar product of a point with a blinding factor, scalar multiply
+by the inverse of the blinding factor to eliminate it.
+
+
 Mapping field elements to curve points
 --------------------------------------
 

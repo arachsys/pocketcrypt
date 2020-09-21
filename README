@@ -177,6 +177,16 @@ preserve group structure, causing problems if (x + y)P = xP + yP is needed,
 such as with Schnorr signatures. It is not bundled into this x25519().
 
 
+Scalar inversion
+----------------
+
+Call x25519_invert() to invert a scalar modulo the order of the X25519 base
+point. This is typically used to remove a blinding factor from a point in
+oblivious pseudorandom functions. For example, given a compound scalar
+product rsG, further multiplying by the scalar inverse of r or s will
+recover sG or rG respectively.
+
+
 Mapping field elements to curve points
 --------------------------------------
 

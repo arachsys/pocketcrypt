@@ -30,6 +30,18 @@ typedef int64_t sdlimb_t;
 typedef limb_t element_t[LIMBS];
 typedef limb_t scalar_t[LIMBS];
 
+static const limb_t zero[LIMBS] = { 0 }, one[LIMBS] = { 1 };
+
+static const scalar_t scalar_l = {
+  LIMB(0x5812631a5cf5d3ed), LIMB(0x14def9dea2f79cd6),
+  LIMB(0x0000000000000000), LIMB(0x1000000000000000)
+};
+
+static const scalar_t scalar_r2 = {
+  LIMB(0xa40611e3449c0f01), LIMB(0xd00e1ba768859347),
+  LIMB(0xceec73d217f5be65), LIMB(0x0399411b7c309a3d)
+};
+
 static void propagate(element_t x, limb_t over) {
   over = x[LIMBS - 1] >> (WBITS - 1) | over << 1;
   x[LIMBS - 1] &= ~((limb_t) 1 << (WBITS - 1));
@@ -110,7 +122,7 @@ static void condswap(element_t x, element_t y, limb_t mask) {
 }
 
 static limb_t invsqrt(element_t out, const element_t x) {
-  const element_t one = { 1 }, sqrtm1 = {
+  const element_t sqrtm1 = {
     LIMB(0xc4ee1b274a0ea0b0), LIMB(0x2f431806ad2fe478),
     LIMB(0x2b4d00993dfbd7a7), LIMB(0x2b8324804fc1df0b)
   };
@@ -167,6 +179,41 @@ static void ladder2(element_t xs[5], const element_t x1) {
   mul(z2, z2, x2);
   sub(x2, t1, x2);
   mul(x2, x2, t1);
+}
+
+static void montmla(scalar_t out, const scalar_t x, const scalar_t y) {
+  const limb_t montgomery = (limb_t) 0xd2b51da312547e1b;
+  dlimb_t highcarry = 0;
+
+  for (uint8_t i = 0; i < LIMBS; i++) {
+    dlimb_t carry1 = 0, carry2 = 0;
+    limb_t mand1 = x[i], mand2 = montgomery;
+    for (uint8_t j = 0; j < LIMBS; j++) {
+      carry1 += (dlimb_t) mand1 * y[j] + out[j];
+      if (j == 0)
+        mand2 *= (limb_t) carry1;
+      carry2 += (dlimb_t) mand2 * scalar_l[j] + (limb_t) carry1;
+      if (j > 0)
+        out[j - 1] = carry2;
+      carry1 >>= WBITS, carry2 >>= WBITS;
+    }
+    out[LIMBS - 1] = highcarry += carry1 + carry2;
+    highcarry >>= WBITS;
+  }
+
+  sdlimb_t scarry = 0;
+  for (uint8_t i = 0; i < LIMBS; i++)
+    out[i] = scarry = scarry + out[i] - scalar_l[i], scarry >>= WBITS;
+
+  dlimb_t addl = -(scarry + highcarry), carry = 0;
+  for (uint8_t i = 0; i < LIMBS; i++)
+    out[i] = carry += addl * scalar_l[i] + out[i], carry >>= WBITS;
+}
+
+static void montmul(scalar_t out, const scalar_t x, const scalar_t y) {
+  scalar_t z = { 0 };
+  montmla(z, x, y);
+  memcpy(out, z, sizeof(scalar_t));
 }
 
 static void swapin(limb_t *out, const uint8_t *in) {
@@ -233,9 +280,35 @@ int x25519(x25519_t out, const x25519_t scalar, const x25519_t point) {
   return result;
 }
 
+void x25519_invert(x25519_t out, const x25519_t scalar) {
+  scalar_t x, y, z[8];
+  swapin(x, scalar);
+
+  montmul(z[0], x, scalar_r2);
+  montmul(z[7], z[0], z[0]);
+  for (uint8_t i = 0; i < 7; i++)
+    montmul(z[i + 1], z[i], z[7]);
+  memcpy(y, z[0], sizeof(scalar_t));
+
+  uint8_t residue = 0, trailing = 0;
+  for (int i = 248; i >= -3; i--) {
+    limb_t limb = i < 0 ? 0 : scalar_l[i / WBITS] - (i < WBITS ? 2 : 0);
+    residue = residue << 1 | (limb >> (i % WBITS) & 1);
+    montmul(y, y, y);
+    if (residue >> 3 != 0)
+      trailing = residue, residue = 0;
+    if (trailing > 0 && (trailing & 7) == 0)
+      montmul(y, y, z[trailing >> 4]), trailing = 0;
+    trailing <<= 1;
+  }
+
+  montmla(y, zero, zero);
+  swapout(out, y);
+}
+
 void x25519_point(x25519_t out, const x25519_t element) {
   const limb_t a = 486662;
-  const element_t zero = { 0 }, one = { 1 }, k = {
+  const element_t k = {
     LIMB(0x7623c9b16be2be8d), LIMB(0xa179cff2a5a0370e),
     LIMB(0xa965fecd840850b1), LIMB(0x28f9b6ff607c41e9)
   };
@@ -270,55 +343,15 @@ void x25519_point(x25519_t out, const x25519_t element) {
   swapout(out, x);
 }
 
-static void montmul(scalar_t out, const scalar_t x,
-    const scalar_t y) {
-  const limb_t montgomery = (limb_t) 0xd2b51da312547e1b;
-  const scalar_t p = {
-    LIMB(0x5812631a5cf5d3ed), LIMB(0x14def9dea2f79cd6),
-    LIMB(0x0000000000000000), LIMB(0x1000000000000000)
-  };
-
-  dlimb_t highcarry = 0;
-  for (uint8_t i = 0; i < LIMBS; i++) {
-    dlimb_t carry1 = 0, carry2 = 0;
-    limb_t mand1 = x[i], mand2 = montgomery;
-    for (uint8_t j = 0; j < LIMBS; j++) {
-      carry1 += (dlimb_t) mand1 * y[j] + out[j];
-      if (j == 0)
-        mand2 *= (limb_t) carry1;
-      carry2 += (dlimb_t) mand2 * p[j] + (limb_t) carry1;
-      if (j > 0)
-        out[j - 1] = carry2;
-      carry1 >>= WBITS, carry2 >>= WBITS;
-    }
-    out[LIMBS - 1] = highcarry += carry1 + carry2;
-    highcarry >>= WBITS;
-  }
-
-  sdlimb_t scarry = 0;
-  for (uint8_t i = 0; i < LIMBS; i++)
-    out[i] = scarry = scarry + out[i] - p[i], scarry >>= WBITS;
-
-  dlimb_t addp = -(scarry + highcarry), carry = 0;
-  for (uint8_t i = 0; i < LIMBS; i++)
-    out[i] = carry += addp * p[i] + out[i], carry >>= WBITS;
-}
-
 void x25519_sign(x25519_t response, const x25519_t challenge,
     const x25519_t ephemeral, const x25519_t identity) {
-  const scalar_t r2 = {
-    LIMB(0xa40611e3449c0f01), LIMB(0xd00e1ba768859347),
-    LIMB(0xceec73d217f5be65), LIMB(0x0399411b7c309a3d)
-  };
-
   scalar_t scalar1, scalar2, scalar3;
   swapin(scalar1, ephemeral);
   swapin(scalar2, identity);
   swapin(scalar3, challenge);
 
-  montmul(scalar1, scalar2, scalar3);
-  memset(scalar2, 0, sizeof(scalar_t));
-  montmul(scalar2, scalar1, r2);
+  montmla(scalar1, scalar2, scalar3);
+  montmul(scalar2, scalar1, scalar_r2);
   swapout(response, scalar2);
 }
 

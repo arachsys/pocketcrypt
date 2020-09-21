@@ -53,6 +53,13 @@ static double exchange(size_t repeat) {
   return 1.0e6 * (clock() - start) / CLOCKS_PER_SEC / repeat;
 }
 
+static double invert(size_t repeat) {
+  clock_t start = clock();
+  for (size_t i = 0; i < repeat; i++)
+    x25519_invert(buffer + 32, buffer);
+  return 1.0e6 * (clock() - start) / CLOCKS_PER_SEC / repeat;
+}
+
 static double pointmap(size_t repeat) {
   clock_t start = clock();
   for (size_t i = 0; i < repeat; i++)
@@ -89,6 +96,7 @@ int main(void) {
   printf("Gimli duplex decrypts at %0.1f MB/s\n\n", speed(decrypt, 512));
 
   printf("X25519 exchanges in %0.1f us\n", exchange(1024));
+  printf("X25519 inverts scalars in %0.1f us\n", invert(8192));
   printf("X25519 maps to curve points in %0.1f us\n", pointmap(16384));
   printf("X25519 signs in %0.1f us\n", sign(1024));
   printf("X25519 verifies in %0.1f us\n\n", verify(1024));
