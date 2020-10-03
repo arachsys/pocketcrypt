@@ -1,90 +1,125 @@
 Pocketcrypt
 ===========
 
-Pocketcrypt is a tiny low-level cryptographic library containing just two
-primitives: a duplex construction using the Gimli or Xoodoo permutation, and
-X25519 for key exchange and Schnorr signatures.
+Pocketcrypt is a tiny legacy-free cryptographic library providing duplex
+constructions using Gimli or Xoodoo, together with X25519 for key exchange
+and Schnorr signatures. Eschewing interoperability with the standard museum
+of primitives and protocols, it offers concise, easily-understood code that
+avoids the ugly boilerplate and obfuscation of larger libraries.
 
-These can be assembled in standard, well-understood ways to form high-level
-constructions such as hashes, authenticated encryption and signed messages,
-or more interactive protocols. Traditional recipes such as NaCl-style sealed
-boxes are a likely future feature, but are not included in this pre-release.
-
-Pocketcrypt is not a sprawling museum of cryptography. It makes no attempt
-at interoperability, assuming modern duplex constructions for all symmetric
-operations and protocols. In return, it offers concise, easily-understood
-code that avoids the ugly boilerplate and obfuscation of larger libraries.
-
-Although X25519 is thoroughly battle-hardened, Gimli is relatively new and
-still under scrutiny. Pocketcrypt might switch permutation if Gimli proves
-weak under cryptanalytic attack, and for this reason Xoodoo is included as
-an alternative. Potential users should carefully review both this code and
-the relevant literature before considering this library.
-
-To use this library, copy duplex.h, x25519.h and x25519.c into your tree.
-There are no build or run-time dependencies and files are MIT-licensed for
-ease of incorporation into other projects.
+Beware! This early version of Pocketcrypt is neither formally audited nor
+officially released. Safely composing these low-level primitives requires
+cryptographic expertise. Gimli and Xoodoo are also relatively new and still
+under active cryptanalytic scrutiny. Please review the relevant literature
+and audit the implementation carefully before considering this library.
 
 
 Duplex
-------
+======
 
-duplex.h is a fast architecture-independent implementation of the Gimli and
-Xoodoo permutations and associated duplex operations using the portable
-vector extensions supported by gcc and clang. It is a header-only library so
-there are no link-time dependencies.
+duplex.h is a fast, architecture-independent implementation of the Gimli and
+Xoodoo permutations using gcc/clang vector extensions, together with
+associated duplex operations.
 
-The permutation operates over a state of twelve 32-bit words, manipulated
-here as an array of three 128-bit uint32x4_t vectors. Bytes are absorbed and
-squeezed in 16-byte chunks, treated as little-endian words to ensure duplex
-operations are well-defined independent of platform byte order.
+To use this header-only library, copy duplex.h into your tree. There are no
+link-time dependencies.
+
+
+Initialising and permuting state
+--------------------------------
 
 Define duplex_permute as duplex_gimli or duplex_xoodoo before including
-duplex.h to explictly select the permutation. The default is duplex_gimli.
+duplex.h to explictly select a permutation. The default is duplex_gimli.
 
-Initialise a duplex state with duplex_t state = { 0 }.
+Both permutations operate over a state of twelve 32-bit words, manipulated
+here as duplex_t, a type alias for the vector array uint32x4_t[3]. When
+individual bytes of the state are required, the uint32_t words are accessed
+little-endian, ensuring results are independent of platform byte order.
 
-To apply the permutation directly, use duplex_permute(state), but this is
-typically delegated to higher-level duplex operations.
+Initialise a duplex state and byte counter with
 
-Each duplex call accepts, updates and returns a size_t byte counter as well
-as the duplex_t state. This allows partial chunks to be seamlessly absorbed,
-squeezed, encrypted and decrypted in a streaming setting. The counter should
-be initialised as zero at the same time as the state, then passed to and
-received from each operation that follows.
+  duplex_t state = { 0 };
+  size_t counter = 0;
 
-To absorb an arbitrary-length buffer of bytes into a duplex state, call
-duplex_absorb(state, counter, data, length). Each 16-byte chunk is absorbed
-in turn, then the state is permuted before continuing. After any final
-partial chunk is absorbed, the updated counter is returned ready for the
-next duplex_absorb() or duplex_pad() call.
+To directly permute the state, use
 
-duplex_decrypt() and duplex_encrypt() operate like duplex_absorb(), but also
-transform the data based on the duplex state before/after absorbing it, as
-described for the NIST AEAD mode.
+  duplex_permute(state);
 
-duplex_squeeze(state, counter, buffer, length) extracts bytes from the state
-into the buffer, permuting the state after each 16-byte chunk. After any
-final partial chunk is squeezed, the updated counter is returned.
+Typically this is bundled into the higher-level operations, which also
+update the size_t byte counter to allow partial chunks to be seamlessly
+absorbed, squeezed, encrypted and decrypted.
 
-To prevent extension attacks, call duplex_pad(state, counter) after a
-variable-length message has been absorbed, encrypted, or decrypted. It pads
-the final partial/empty chunk then forks the capacity part of the state
-before permuting it, as described in the Gimli NIST submission. The counter
-will advance to the next multiple of 16 bytes.
+Duplex operations absorb and squeeze bytes in 16-byte chunks corresponding
+to the permutation rate. duplex_rate is defined as
 
-duplex_ratchet(state, counter) irreversibly ratchets the duplex state by
-zeroing the rate portion of the state and permuting, thus ensuring session
-forward secrecy and preventing rollback even from a completely compromised
-state. As exactly 16 bytes are cleared, the counter will advance by 16.
+  const size_t duplex_rate = 16;
 
-duplex_compare(a, b, length) is provided for validating authentication tags.
-It compares two byte arrays in constant time, returning 0 for equality, -1
-otherwise. If a or b is null, the other argument is compared with zero.
+to help avoid magic numbers in client code.
 
-duplex_rate is defined as constant size_t 16, the size in bytes of the rate
-portion of the duplex state, useful for avoiding magic numbers for sizes of
-nonces and authentication tags in client code.
+
+Absorbing and squeezing data
+----------------------------
+
+Absorb a uint8_t[] buffer into a duplex state with
+
+  counter = duplex_absorb(state, counter, data, length);
+
+Each rate-sized chunk is absorbed in turn, then the state is permuted before
+continuing. After any final partial chunk is absorbed, the updated counter
+is returned ready for the next duplex_absorb() or duplex_pad() call.
+
+Squeeze data from a duplex state into a uint8_t[] buffer with
+
+  counter = duplex_squeeze(state, counter, data, length);
+
+Bytes are extracted from the duplex state into the buffer, permuting the
+state after each rate-sized chunk. After any final partial chunk is
+squeezed, the updated counter is returned.
+
+
+Encryption and decryption
+-------------------------
+
+To encrypt a plaintext using a duplex state, for example after absorbing a
+shared key and nonce, call
+
+  counter = duplex_encrypt(state, counter, data, length);
+
+Similarly, decrypt a ciphertext using a duplex state with
+
+  counter = duplex_decrypt(state, counter, data, length);
+
+The rate portion of the state is mixed into rate-sized chunks of the buffer
+in turn. Before permuting and continuing to the next chunk, the plaintext is
+absorbed back into the rate. (For encryption this is the original chunk; for
+decryption it is the updated chunk.)
+
+To implement authenticated encryption, squeeze and append a rate-sized tag
+after encrypting a message and padding the state. This can then be checked
+against duplex_rate bytes squeezed by the recipient after decryption.
+
+
+Padding and ratcheting
+----------------------
+
+To prevent extension attacks following an operation on variable-length data,
+pad the state with
+
+  counter = duplex_pad(state, counter);
+
+after the final duplex_absorb(), duplex_encrypt() or duplex_decrypt().
+
+This pads the final partial/empty chunk then forks the capacity part of the
+state before permuting it, as described in the Gimli NIST submission. The
+counter will advance to the next multiple of the rate.
+
+To ensure forward secrecy during a session, call
+
+  counter = duplex_ratchet(state, counter);
+
+This irreversibly ratchets the duplex state by zeroing the rate portion of
+the state and permuting, thus preventing rollback even from a completely
+compromised state. The counter will advance by exactly duplex_rate.
 
 Although the counter is often useful as a sequence number for more complex
 protocols, duplex.h only cares about the four lowest bits for alignment. In
@@ -95,14 +130,25 @@ simple cases such as an authenticated encrypted box, a useful idiom is
   duplex_pad(state, duplex_encrypt(state, 0, message, length));
   duplex_squeeze(state, 0, tag, duplex_rate);
 
-For information on Gimli, see https://gimli.cr.yp.to/gimli-20170627.pdf and
-the documentation at https://csrc.nist.gov/projects/lightweight-cryptography
-where Gimli is a candidate. Sponge and duplex constructions are well-covered
-by https://eprint.iacr.org/2011/499.pdf including generic security analysis.
+When designing protocols, compulsory fixed-length inputs that are naturally
+multiples of duplex_rate such as keys or nonces can safely be absorbed
+unpadded. However, to avoid extension attacks, variable-length messages must
+be padded even if they happen to be an exact multiple of the rate.
 
-For information on Xoodoo, see https://keccak.team/xoodoo.html and
-https://eprint.iacr.org/2018/767.pdf - but note the duplex construction here
-is the Gimli one rather than the more complicated Xoodyak cyclist object.
+
+Constant-time comparison
+------------------------
+
+Compare two equal-sized byte arrays in constant time with
+
+  duplex_compare(a, b, length);
+
+This returns 0 for equality, -1 otherwise. If a or b is null, the other
+argument is compared with zero.
+
+This is useful for validating authentication tags or checking other secret
+data without inadvertently revealing the location of the first discrepancy
+through the time taken to detect it.
 
 
 Implementation notes
@@ -115,40 +161,66 @@ loops and architecture-specific intrinsics are not needed, but compiled with
 optimised SSE3 Gimli submitted to NIST and the Keccak team's SSE2 Xoodoo in
 XKCP. Modern gcc and clang compile vector extensions impressively well.
 
-When designing protocols, compulsory fixed-length inputs that are naturally
-multiples of 16-bytes such as keys or nonces can safely be absorbed
-unpadded. However, to avoid extension attacks, variable-length messages must
-be padded even if they happen to be an exact multiple of 16-bytes in length.
-
 Although duplex.h should work on both little- and big-endian architectures,
 it will refuse to build on a mixed-endian system even if you contrive one
 with sufficient gcc support.
 
+For information on Gimli, see https://gimli.cr.yp.to/gimli-20170627.pdf and
+the documentation at https://csrc.nist.gov/projects/lightweight-cryptography
+where Gimli is a candidate. Sponge and duplex constructions are well-covered
+by https://eprint.iacr.org/2011/499.pdf including generic security analysis.
+
+For information on Xoodoo, see https://keccak.team/xoodoo.html and
+https://eprint.iacr.org/2018/767.pdf - but note the duplex construction here
+is the Gimli one rather than the more complicated Xoodyak cyclist object.
+
 
 X25519
-------
+======
 
-This X25519 code was adapted with minor changes from the elegant code in
+This X25519 implementation is adapted and extended from the elegant code in
 Mike Hamburg's STROBE protocol framework at https://strobe.sourceforge.io/
 It is very portable but can detect and take advantage of 128-bit integer
 types where they are available.
 
-The implementation assumes constant-time integer multiplication. This is
-valid for modern x86-64 and arm64 processors, but variable-time multiplies
-on some embedded platforms may introduce timing leaks.
-
 Prototypes for available operations are in x25519.h. Code using them must be
-linked against x25519.c.
+linked against x25519.c. To use the library, copy both files into your tree.
 
-Scalars and curve points represented by their Montgomery x-coordinates are
-manipulated as 32-byte little-endian arrays (x25519_t) in the standard way.
-The X25519 base point { 9, 0, 0, ... } is predefined as x25519_generator.
+Both curve points (represented by Montgomery x-coordinates) and scalars are
+manipulated as 32-byte little-endian arrays. The correct-sized array type
+and standard base point are defined by x25519.h as
 
-Use x25519() to perform scalar multiplication of points. To generate a key
-pair (sk, pk), randomise sk then call x25519(pk, sk, x25519_generator) to
-calculate pk. Similarly, x25519(key, sk, pk) calculates the shared secret
-corresponding to sk and pk. x25519(key, sk1, pk2) and x25519(key, sk2, pk1)
-will generate the same key for all pairs (sk1, pk1) and (sk2, pk2).
+  typedef uint8_t x25519_t[32];
+  const x25519_t x25519_generator = { 9 };
+
+x25519.c assumes constant-time integer multiplication. This is valid for
+modern x86-64 and arm64 processors, but variable-time multiplies on some
+embedded platforms may introduce timing leaks.
+
+
+Scalar multiplication
+---------------------
+
+Multiply an x25519_t curve point by an x25519_t scalar with
+
+  x25519(out, scalar, point);
+
+x25519() returns -1 if the product vanishes, otherwise 0. This is used to
+detect non-contributory behaviour as described below.
+
+Generate a key pair (sk, pk) by randomising sk then calling
+
+  x25519(pk, sk, x25519_generator);
+
+to calculate pk.
+
+Similarly, calculate a shared secret corresponding to sk and pk by calling
+
+  x25519(key, sk, pk);
+
+x25519(key, sk1, pk2) and x25519(key, sk2, pk1) will generate the same key
+for all pairs (sk1, pk1) and (sk2, pk2). The computational ECDH assumption
+is that recovering this key with neither sk1 nor sk2 is infeasible.
 
 Shared keys have high entropy but as curve points they are not free of
 structure. They are safe to absorb into a duplex construction or otherwise
@@ -164,10 +236,12 @@ Torsion safety and small-subgroup attacks
 Some protocols require neither participant to have sole control of a shared
 secret. However, the curve has cofactor 8 and its twist has cofactor 4, so
 if an attacker submits a torsion point as a public key, at most 8 distinct
-product values are possible. This non-contributory behaviour can be detected
-by generating secret keys as multiples of eight with sk[0] &= 0xf8; then
-checking x25519() returns 0 during key exchange, indicating the product did
-not vanish. It is preferable to design protocols that do not rely on this.
+product values are possible.
+
+Detect this non-contributory behaviour by choosing secret keys that are
+multiples of eight with sk[0] &= 0xf8. These annihilate torsion components.
+If x25519() returns 0, the scalar product is non-zero and the key exchange
+was safe. It is preferable to design protocols that do not rely on this.
 
 RFC 7748 itself specifies a clamping operation on both scalars and points,
 implemented as clamp() in test/known-x25519.c. Alas, rather than framing it
@@ -180,8 +254,11 @@ such as with Schnorr signatures. It is not bundled into this x25519().
 Scalar inversion
 ----------------
 
-Call x25519_invert() to invert a scalar modulo the order of the X25519 base
-point. This is typically used to remove a blinding factor from a point in
+Invert a scalar modulo the order of the X25519 base point with
+
+  x25519_invert(out, scalar);
+
+This is typically used to remove a blinding factor from a point in
 oblivious pseudorandom functions. For example, given a compound scalar
 product rsG, further multiplying by the scalar inverse of r or s will
 recover sG or rG respectively.
@@ -190,12 +267,16 @@ recover sG or rG respectively.
 Mapping field elements to curve points
 --------------------------------------
 
-Use x25519_point() to map a field element onto a curve point using the
-Elligator 2 mapping from https://elligator.cr.yp.to/elligator-20130828.pdf
-with non-square parameter u = 2.
+For any field element, call
+
+  x25519_point(out, element);
+
+to map it onto a curve point using the Elligator 2 mapping with non-square
+parameter u = 2. See https://elligator.cr.yp.to/elligator-20130828.pdf for
+more details.
 
 A point on the full curve is returned, not necessarily in the prime-order
-subgroup. Scalar multiply by eight to eliminate the cofactor if needed.
+subgroup. Scalar multiply by eight if torsion-free points are required.
 
 The map is efficiently invertible and its range is around half of the points
 on the curve. Assuming the probability of efficiently calculating discrete
@@ -214,24 +295,36 @@ Signatures
 ----------
 
 STROBE-compatible X25519 Schnorr signatures are also supported. These are
-different from more common Ed25519 signatures, but they minimise additional
+different from standard Ed25519 signatures, but they minimise additional
 code expenditure in protocols based around X25519 key exchange.
 
-Generate an ephemeral key pair (e, E). To sign a 32-byte scalar challenge c
-with identity key pair (a, A), call x25519_sign() to calculate the scalar
-response s = e + ca (mod q), where q is the order of the X25519 base point.
-For example, a suitable challenge could be squeezed from the duplex state
-after absorbing a message, identity public key and ephemeral public key.
-Discard the ephemeral secret e. The signature is the pair (E, s).
+To sign a 32-byte scalar challenge c with identity key pair (a, A), generate
+an ephemeral key pair (e, E) then call
 
-Given the scalar response s, challenge c, ephemeral public key E and public
-identity A, pass these to x25519_verify() to verify the Schnorr signature
-and rule out torsion points. See https://eprint.iacr.org/2012/309.pdf for
-details, and also https://eprint.iacr.org/2017/518.pdf for the qDSA scheme.
+  x25519_sign(response, challenge, ephemeral, identity);
 
-As with all Schnorr signatures, leaking or reusing an ephemeral secret
-trivially compromises the identity secret, and more generally, any bias in
-random key generation across many signatures will leak key bits.
+This calculates the scalar response s = e + ca (mod l), where l is the order
+of the X25519 base point. Discard the ephemeral secret e. The signature is
+the 64-byte pair (E, s).
+
+Given a scalar response s, scalar challenge c, ephemeral public key E and
+identity public key A, call
+
+  x25519_verify(response, challenge, ephemeral, identity);
+
+to verify the response. This checks sG = ± E ± cA and rules out torsion
+points. It returns 0 for a valid signature, -1 otherwise.
+
+Schnorr challenges must hash the ephemeral public key as well as the message
+to be signed, because the prover must commit before the verifier challenges
+in the corresponding sigma protocol. Absorb the ephemeral public key on top
+of a duplex state before squeezing a challenge to sign that state.
+
+Signatures are malleable: if s' = ± s (mod l) where s is a valid response,
+s' is also a valid response. As with all Schnorr signatures, leaking or
+reusing an ephemeral secret trivially compromises the identity secret, and
+more generally, any bias in random key generation across many signatures
+will leak key bits.
 
 For deterministic signatures, clone the duplex state after absorbing the
 message and public identity, absorb the identity secret on top then squeeze
@@ -240,9 +333,12 @@ state and continue as before, absorbing the ephemeral public key into the
 original duplex and squeezing a challenge. This eliminates the risk of
 reusing an ephemeral key and the need for unbiased entropy during signing.
 
+See https://eprint.iacr.org/2012/309.pdf for details on STROBE signatures,
+and also https://eprint.iacr.org/2017/518.pdf for the qDSA scheme.
+
 
 Copying
--------
+=======
 
 x25519.c was originally written by Mike Hamburg as part of the STROBE
 protocol framework, and is distributed as Free Software under the terms of
