@@ -6,12 +6,12 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#if defined __has_builtin && __has_builtin(__builtin_shufflevector)
+#if defined __clang_major__ && __clang_major__ >= 4
 #define duplex_swap(x, ...) __builtin_shufflevector(x, x, __VA_ARGS__)
-#elif defined __has_builtin && __has_builtin(__builtin_shuffle)
+#elif defined __GNUC__ && __GNUC__ >= 5
 #define duplex_swap(x, ...) __builtin_shuffle(x, (typeof(x)) { __VA_ARGS__ })
 #else
-#error Vector extensions are not available
+#error Vector extensions require clang >= 4.0.0 or gcc >= 5.1.0
 #endif
 
 #if defined __BYTE_ORDER__ && __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
