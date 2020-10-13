@@ -7,8 +7,10 @@
 #include <stdint.h>
 
 #if defined __clang_major__ && __clang_major__ >= 4
+#define duplex_copy __builtin_memcpy
 #define duplex_swap(x, ...) __builtin_shufflevector(x, x, __VA_ARGS__)
 #elif defined __GNUC__ && __GNUC__ >= 5
+#define duplex_copy __builtin_memcpy
 #define duplex_swap(x, ...) __builtin_shuffle(x, (typeof(x)) { __VA_ARGS__ })
 #else
 #error Vector extensions require clang >= 4.0.0 or gcc >= 5.1.0
@@ -16,10 +18,15 @@
 
 #if defined __BYTE_ORDER__ && __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
 #define duplex_byte(state, i) ((uint8_t *) state)[i]
+#define duplex_bytes(words) ((uint8x16_t) words)
+#define duplex_words(bytes) ((uint32x4_t) bytes)
 #define duplex_r24 1, 2, 3, 0, 5, 6, 7, 4, 9, 10, 11, 8, 13, 14, 15, 12
 #define duplex_rho 11, 8, 9, 10, 15, 12, 13, 14, 3, 0, 1, 2, 7, 4, 5, 6
 #elif defined __BYTE_ORDER__ && __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
 #define duplex_byte(state, i) ((uint8_t *) state)[i ^ 3]
+#define duplex_bytes(words) duplex_swap((uint8x16_t) words, \
+  3, 2, 1, 0, 7, 6, 5, 4, 11, 10, 9, 8, 15, 14, 13, 12)
+#define duplex_words(bytes) ((uint32x4_t) duplex_bytes(bytes))
 #define duplex_r24 3, 0, 1, 2, 7, 4, 5, 6, 11, 8, 9, 10, 15, 12, 13, 14
 #define duplex_rho 9, 10, 11, 8, 13, 14, 15, 12, 1, 2, 3, 0, 5, 6, 7, 4
 #else
@@ -36,13 +43,9 @@ typedef uint32x4_t duplex_t[3];
 
 static const size_t duplex_rate = 16;
 
-static inline uint32x4_t duplex_rotate24(uint32x4_t row) {
-  return (uint32x4_t) duplex_swap((uint8x16_t) row, duplex_r24);
-}
-
 static inline void duplex_gimli(duplex_t state) {
   for (size_t round = 24; round > 0; round--) {
-    uint32x4_t x = duplex_rotate24(state[0]);
+    uint32x4_t x = (uint32x4_t) duplex_swap((uint8x16_t) state[0], duplex_r24);
     uint32x4_t y = state[1] << 9 | state[1] >> 23;
     uint32x4_t z = state[2];
 
@@ -91,29 +94,26 @@ static inline size_t duplex_absorb(duplex_t state, size_t counter,
   uint8_t offset = counter & 15;
   counter += length;
 
-  if (length + offset < 16) {
-    for (uint8_t i = 0; i < length; i++)
-      duplex_byte(state, i + offset) ^= data[i];
-    return counter;
-  }
+  while (1) {
+    if (length < 16 || offset > 0) {
+      for (uint8_t i = offset; i < 16; i++, length--) {
+        if (length == 0)
+          return counter;
+        duplex_byte(state, i) ^= data[i - offset];
+      }
+      data += 16 - offset, offset = 0;
+      duplex_permute(state);
+    }
 
-  if (offset > 0) {
-    for (uint8_t i = 0; i < 16 - offset; i++)
-      duplex_byte(state, i + offset) ^= data[i];
-    data += 16 - offset, length -= 16 - offset;
-    duplex_permute(state);
+    while (length >= 16) {
+      uint8x16_t chunk;
+      duplex_copy(&chunk, data, 16);
+      chunk ^= duplex_bytes(state[0]);
+      state[0] = duplex_words(chunk);
+      data += 16, length -= 16;
+      duplex_permute(state);
+    }
   }
-
-  while (length >= 16) {
-    for (uint8_t i = 0; i < 16; i++)
-      duplex_byte(state, i) ^= data[i];
-    data += 16, length -= 16;
-    duplex_permute(state);
-  }
-
-  for (uint8_t i = 0; i < length; i++)
-    duplex_byte(state, i) ^= data[i];
-  return counter;
 }
 
 static inline int duplex_compare(const uint8_t *a, const uint8_t *b,
@@ -130,37 +130,28 @@ static inline size_t duplex_decrypt(duplex_t state, size_t counter,
   uint8_t offset = counter & 15;
   counter += length;
 
-  if (length + offset < 16) {
-    for (uint8_t i = 0; i < length; i++)
-      data[i] ^= duplex_byte(state, i + offset);
-    for (uint8_t i = 0; i < length; i++)
-      duplex_byte(state, i + offset) ^= data[i];
-    return counter;
-  }
+  while (1) {
+    if (length < 16 || offset > 0) {
+      for (uint8_t i = offset; i < 16; i++, length--) {
+        if (length == 0)
+          return counter;
+        data[i - offset] ^= duplex_byte(state, i);
+        duplex_byte(state, i) ^= data[i - offset];
+      }
+      data += 16 - offset, offset = 0;
+      duplex_permute(state);
+    }
 
-  if (offset > 0) {
-    for (uint8_t i = 0; i < 16 - offset; i++)
-      data[i] ^= duplex_byte(state, i + offset);
-    for (uint8_t i = 0; i < 16 - offset; i++)
-      duplex_byte(state, i + offset) ^= data[i];
-    data += 16 - offset, length -= 16 - offset;
-    duplex_permute(state);
+    while (length >= 16) {
+      uint8x16_t chunk;
+      duplex_copy(&chunk, data, 16);
+      chunk ^= duplex_bytes(state[0]);
+      state[0] ^= duplex_words(chunk);
+      duplex_copy(data, &chunk, 16);
+      data += 16, length -= 16;
+      duplex_permute(state);
+    }
   }
-
-  while (length >= 16) {
-    for (uint8_t i = 0; i < 16; i++)
-      data[i] ^= duplex_byte(state, i);
-    for (uint8_t i = 0; i < 16; i++)
-      duplex_byte(state, i) ^= data[i];
-    data += 16, length -= 16;
-    duplex_permute(state);
-  }
-
-  for (uint8_t i = 0; i < length; i++)
-    data[i] ^= duplex_byte(state, i);
-  for (uint8_t i = 0; i < length; i++)
-    duplex_byte(state, i) ^= data[i];
-  return counter;
 }
 
 static inline size_t duplex_encrypt(duplex_t state, size_t counter,
@@ -168,37 +159,28 @@ static inline size_t duplex_encrypt(duplex_t state, size_t counter,
   uint8_t offset = counter & 15;
   counter += length;
 
-  if (length + offset < 16) {
-    for (uint8_t i = 0; i < length; i++)
-      duplex_byte(state, i + offset) ^= data[i];
-    for (uint8_t i = 0; i < length; i++)
-      data[i] = duplex_byte(state, i + offset);
-    return counter;
-  }
+  while (1) {
+    if (length < 16 || offset > 0) {
+      for (uint8_t i = offset; i < 16; i++, length--) {
+        if (length == 0)
+          return counter;
+        duplex_byte(state, i) ^= data[i - offset];
+        data[i - offset] = duplex_byte(state, i);
+      }
+      data += 16 - offset, offset = 0;
+      duplex_permute(state);
+    }
 
-  if (offset > 0) {
-    for (uint8_t i = 0; i < 16 - offset; i++)
-      duplex_byte(state, i + offset) ^= data[i];
-    for (uint8_t i = 0; i < 16 - offset; i++)
-      data[i] = duplex_byte(state, i + offset);
-    data += 16 - offset, length -= 16 - offset;
-    duplex_permute(state);
+    while (length >= 16) {
+      uint8x16_t chunk;
+      duplex_copy(&chunk, data, 16);
+      chunk ^= duplex_bytes(state[0]);
+      duplex_copy(data, &chunk, 16);
+      state[0] = duplex_words(chunk);
+      data += 16, length -= 16;
+      duplex_permute(state);
+    }
   }
-
-  while (length >= 16) {
-    for (uint8_t i = 0; i < 16; i++)
-      duplex_byte(state, i) ^= data[i];
-    for (uint8_t i = 0; i < 16; i++)
-      data[i] = duplex_byte(state, i);
-    data += 16, length -= 16;
-    duplex_permute(state);
-  }
-
-  for (uint8_t i = 0; i < length; i++)
-    duplex_byte(state, i) ^= data[i];
-  for (uint8_t i = 0; i < length; i++)
-    data[i] = duplex_byte(state, i);
-  return counter;
 }
 
 static inline size_t duplex_pad(duplex_t state, size_t counter) {
@@ -222,29 +204,24 @@ static inline size_t duplex_squeeze(duplex_t state, size_t counter,
   uint8_t offset = counter & 15;
   counter += length;
 
-  if (length + offset < 16) {
-    for (uint8_t i = 0; i < length; i++)
-      data[i] = duplex_byte(state, i + offset);
-    return counter;
-  }
+  while (1) {
+    if (length < 16 || offset > 0) {
+      for (uint8_t i = offset; i < 16; i++, length--) {
+        if (length == 0)
+          return counter;
+        data[i - offset] = duplex_byte(state, i);
+      }
+      data += 16 - offset, offset = 0;
+      duplex_permute(state);
+    }
 
-  if (offset > 0) {
-    for (uint8_t i = 0; i < 16 - offset; i++)
-      data[i] = duplex_byte(state, i + offset);
-    data += 16 - offset, length -= 16 - offset;
-    duplex_permute(state);
+    while (length >= 16) {
+      uint8x16_t chunk = duplex_bytes(state[0]);
+      duplex_copy(data, &chunk, 16);
+      data += 16, length -= 16;
+      duplex_permute(state);
+    }
   }
-
-  while (length >= 16) {
-    for (uint8_t i = 0; i < 16; i++)
-      data[i] = duplex_byte(state, i);
-    data += 16, length -= 16;
-    duplex_permute(state);
-  }
-
-  for (uint8_t i = 0; i < length; i++)
-    data[i] = duplex_byte(state, i);
-  return counter;
 }
 
 #endif
