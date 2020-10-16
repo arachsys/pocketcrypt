@@ -8,42 +8,41 @@
 
 static void chunk_absorb(duplex_t state, uint8_t *buffer, size_t length,
     size_t chunk) {
-  size_t counter = 0;
   while (chunk <= length) {
-    counter = duplex_absorb(state, counter, buffer, chunk);
+    duplex_absorb(state, buffer, chunk);
     buffer += chunk, length -= chunk;
   }
-  duplex_pad(state, duplex_absorb(state, counter, buffer, length));
+  duplex_absorb(state, buffer, length);
+  duplex_pad(state);
 }
 
 static void chunk_decrypt(duplex_t state, uint8_t *buffer, size_t length,
     size_t chunk) {
-  size_t counter = 0;
   while (chunk <= length) {
-    counter = duplex_decrypt(state, counter, buffer, chunk);
+    duplex_decrypt(state, buffer, chunk);
     buffer += chunk, length -= chunk;
   }
-  duplex_pad(state, duplex_decrypt(state, counter, buffer, length));
+  duplex_decrypt(state, buffer, length);
+  duplex_pad(state);
 }
 
 static void chunk_encrypt(duplex_t state, uint8_t *buffer, size_t length,
     size_t chunk) {
-  size_t counter = 0;
   while (chunk <= length) {
-    counter = duplex_encrypt(state, counter, buffer, chunk);
+    duplex_encrypt(state, buffer, chunk);
     buffer += chunk, length -= chunk;
   }
-  duplex_pad(state, duplex_encrypt(state, counter, buffer, length));
+  duplex_encrypt(state, buffer, length);
+  duplex_pad(state);
 }
 
 static void chunk_squeeze(duplex_t state, uint8_t *buffer, size_t length,
     size_t chunk) {
-  size_t counter = 0;
   while (chunk <= length) {
-    counter = duplex_squeeze(state, counter, buffer, chunk);
+    duplex_squeeze(state, buffer, chunk);
     buffer += chunk, length -= chunk;
   }
-  duplex_squeeze(state, counter, buffer, length);
+  duplex_squeeze(state, buffer, length);
 }
 
 static void fill(void *out1, void *out2, size_t length) {
@@ -65,7 +64,8 @@ int main(void) {
     for (size_t chunk = min; chunk <= max; chunk++) {
       fill(buffer1, buffer2, length);
       fill(state1, state2, sizeof(duplex_t));
-      duplex_pad(state1, duplex_absorb(state1, 0, buffer1, length));
+      duplex_absorb(state1, buffer1, length);
+      duplex_pad(state1);
       chunk_absorb(state2, buffer2, length, chunk);
       if (memcmp(state1, state2, sizeof(duplex_t)))
         errx(EXIT_FAILURE, "Streaming absorb failure");
@@ -76,7 +76,8 @@ int main(void) {
     for (size_t chunk = min; chunk <= max; chunk++) {
       fill(buffer1, buffer2, length);
       fill(state1, state2, sizeof(duplex_t));
-      duplex_pad(state1, duplex_decrypt(state1, 0, buffer1, length));
+      duplex_decrypt(state1, buffer1, length);
+      duplex_pad(state1);
       chunk_decrypt(state2, buffer2, length, chunk);
       if (memcmp(buffer1, buffer2, length))
         errx(EXIT_FAILURE, "Streaming decrypt failure");
@@ -89,7 +90,8 @@ int main(void) {
     for (size_t chunk = min; chunk <= max; chunk++) {
       fill(buffer1, buffer2, length);
       fill(state1, state2, sizeof(duplex_t));
-      duplex_pad(state1, duplex_encrypt(state1, 0, buffer1, length));
+      duplex_encrypt(state1, buffer1, length);
+      duplex_pad(state1);
       chunk_encrypt(state2, buffer2, length, chunk);
       if (memcmp(buffer1, buffer2, length))
         errx(EXIT_FAILURE, "Streaming encrypt failure");
@@ -101,7 +103,7 @@ int main(void) {
   for (size_t chunk = min; chunk <= max; chunk++) {
     fill(buffer1, buffer2, size);
     fill(state1, state2, sizeof(duplex_t));
-    duplex_squeeze(state1, 0, buffer1, size);
+    duplex_squeeze(state1, buffer1, size);
     chunk_squeeze(state2, buffer2, size, chunk);
     if (memcmp(buffer1, buffer2, size))
       errx(EXIT_FAILURE, "Streaming squeeze failure");

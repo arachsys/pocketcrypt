@@ -31,19 +31,19 @@ static double speed(void (*operation)(void), size_t repeat) {
 }
 
 static void absorb(void) {
-  duplex_absorb(state, 0, buffer, sizeof(buffer));
+  duplex_absorb(state, buffer, sizeof(buffer));
 }
 
 static void squeeze(void) {
-  duplex_squeeze(state, 0, buffer, sizeof(buffer));
+  duplex_squeeze(state, buffer, sizeof(buffer));
 }
 
 static void encrypt(void) {
-  duplex_encrypt(state, 0, buffer, sizeof(buffer));
+  duplex_encrypt(state, buffer, sizeof(buffer));
 }
 
 static void decrypt(void) {
-  duplex_decrypt(state, 0, buffer, sizeof(buffer));
+  duplex_decrypt(state, buffer, sizeof(buffer));
 }
 
 static double exchange(size_t repeat) {

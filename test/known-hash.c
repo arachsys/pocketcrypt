@@ -1050,8 +1050,9 @@ int main(void) {
 
   for (size_t length = 0; length <= max; length++) {
     duplex_t state = { 0 };
-    duplex_pad(state, duplex_absorb(state, 0, in, length));
-    duplex_squeeze(state, 0, out, 32);
+    duplex_absorb(state, in, length);
+    duplex_pad(state);
+    duplex_squeeze(state, out, 32);
     if (check(out, known[length])) /* variable time */
       errx(EXIT_FAILURE, "Known hash failure with %zd-byte input", length);
   }

@@ -32,29 +32,27 @@ Define duplex_permute as duplex_gimli or duplex_xoodoo before including
 duplex.h to explictly select a permutation. The default is duplex_gimli.
 
 Both permutations operate over a state of twelve 32-bit words, manipulated
-here as duplex_t, a type alias for the vector array uint32x4_t[3]. When
-individual bytes of the state are required, the uint32_t words are accessed
-little-endian, ensuring results are independent of platform byte order.
+here as a vector array uint32x4_t[3]. When individual bytes of the state are
+required, the uint32_t words are accessed little-endian, ensuring results
+are independent of platform byte order.
 
-Initialise a duplex state and byte counter with
+Internally, higher-level duplex operations absorb and squeeze bytes in
+16-byte chunks corresponding to the permutation rate. By maintaining a byte
+counter alongside the duplex state, operations can also seamlessly absorb,
+squeeze, encrypt and decrypt partial chunks. The combined state and counter
+are stored as duplex_t, a type alias for uint32x4_t[4].
+
+Initialise a duplex state including the byte counter with
 
   duplex_t state = { 0 };
-  size_t counter = 0;
+
+Use duplex_counter(state) to dereference the uint64_t counter as an lvalue.
 
 To directly permute the state, use
 
   duplex_permute(state);
 
-Typically this is bundled into the higher-level operations, which also
-update the size_t byte counter to allow partial chunks to be seamlessly
-absorbed, squeezed, encrypted and decrypted.
-
-Duplex operations absorb and squeeze bytes in 16-byte chunks corresponding
-to the permutation rate. duplex_rate is defined as
-
-  const size_t duplex_rate = 16;
-
-to help avoid magic numbers in client code.
+Typically this is bundled into the higher-level operations.
 
 
 Absorbing and squeezing data
@@ -62,19 +60,19 @@ Absorbing and squeezing data
 
 Absorb a uint8_t[] buffer into a duplex state with
 
-  counter = duplex_absorb(state, counter, data, length);
+  duplex_absorb(state, data, length);
 
 Each rate-sized chunk is absorbed in turn, then the state is permuted before
-continuing. After any final partial chunk is absorbed, the updated counter
-is returned ready for the next duplex_absorb() or duplex_pad() call.
+continuing. Once any final partial chunk is absorbed, the counter will
+advance by length ready for the next duplex operation.
 
 Squeeze data from a duplex state into a uint8_t[] buffer with
 
-  counter = duplex_squeeze(state, counter, data, length);
+  duplex_squeeze(state, data, length);
 
 Bytes are extracted from the duplex state into the buffer, permuting the
-state after each rate-sized chunk. After any final partial chunk is
-squeezed, the updated counter is returned.
+state after each rate-sized chunk. Once any final partial chunk is squeezed,
+the counter will advance by length as with duplex_absorb().
 
 
 Encryption and decryption
@@ -83,29 +81,29 @@ Encryption and decryption
 To encrypt a plaintext using a duplex state, for example after absorbing a
 shared key and nonce, call
 
-  counter = duplex_encrypt(state, counter, data, length);
+  duplex_encrypt(state, data, length);
 
 Similarly, decrypt a ciphertext using a duplex state with
 
-  counter = duplex_decrypt(state, counter, data, length);
+  duplex_decrypt(state, data, length);
 
 The rate portion of the state is mixed into rate-sized chunks of the buffer
 in turn. Before permuting and continuing to the next chunk, the plaintext is
 absorbed back into the rate. (For encryption this is the original chunk; for
-decryption it is the updated chunk.)
+decryption it is the updated chunk.) The counter will advance by length.
 
 To implement authenticated encryption, squeeze and append a rate-sized tag
 after encrypting a message and padding the state. This can then be checked
 against duplex_rate bytes squeezed by the recipient after decryption.
 
 
-Padding and ratcheting
-----------------------
+Padding
+-------
 
 To prevent extension attacks following an operation on variable-length data,
 pad the state with
 
-  counter = duplex_pad(state, counter);
+  duplex_pad(state);
 
 after the final duplex_absorb(), duplex_encrypt() or duplex_decrypt().
 
@@ -113,27 +111,25 @@ This pads the final partial/empty chunk then forks the capacity part of the
 state before permuting it, as described in the Gimli NIST submission. The
 counter will advance to the next multiple of the rate.
 
-To ensure forward secrecy during a session, call
-
-  counter = duplex_ratchet(state, counter);
-
-This irreversibly ratchets the duplex state by zeroing the rate portion of
-the state and permuting, thus preventing rollback even from a completely
-compromised state. The counter will advance by exactly duplex_rate.
-
-Although the counter is often useful as a sequence number for more complex
-protocols, duplex.h only cares about the four lowest bits for alignment. In
-simple cases such as an authenticated encrypted box, a useful idiom is
-
-  duplex_absorb(state, 0, key, sizeof(key));
-  duplex_absorb(state, 0, nonce, duplex_rate);
-  duplex_pad(state, duplex_encrypt(state, 0, message, length));
-  duplex_squeeze(state, 0, tag, duplex_rate);
-
 When designing protocols, compulsory fixed-length inputs that are naturally
 multiples of duplex_rate such as keys or nonces can safely be absorbed
 unpadded. However, to avoid extension attacks, variable-length messages must
 be padded even if they happen to be an exact multiple of the rate.
+
+For convenience, duplex_rate is defined as 16 to help avoid magic numbers
+for nonce and tag sizes in client code.
+
+
+Ratcheting
+----------
+
+To ensure forward secrecy during a session, call
+
+  duplex_ratchet(state);
+
+This irreversibly ratchets the duplex state by zeroing the rate portion of
+the state and permuting, thus preventing rollback even from a completely
+compromised state. The counter will advance by exactly duplex_rate.
 
 
 Constant-time comparison

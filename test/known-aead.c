@@ -1099,10 +1099,11 @@ const char *known[] = {
   "766b3b5e7788272d39edad2bcebaf41606e62076a0fd1494b99527bf45dc138f1a9606db255937b68e02fec83e2c54b9"
 };
 
-const uint32_t start[12] = {
+const uint32_t start[16] = {
   0x03020100, 0x07060504, 0x0b0a0908, 0x0f0e0d0c,
   0x03020100, 0x07060504, 0x0b0a0908, 0x0f0e0d0c,
-  0x13121110, 0x17161514, 0x1b1a1918, 0x1f1e1d1c
+  0x13121110, 0x17161514, 0x1b1a1918, 0x1f1e1d1c,
+  0x00000000, 0x00000000, 0x00000000, 0x00000000
 };
 
 static int check(uint8_t *in, const char *hex) {
@@ -1127,19 +1128,23 @@ int main(void) {
 
       memcpy(state, start, sizeof(state));
       duplex_permute(state);
-      duplex_pad(state, duplex_absorb(state, 0, in, extra));
+      duplex_absorb(state, in, extra);
+      duplex_pad(state);
       memcpy(out, in, sizeof(in));
-      duplex_pad(state, duplex_encrypt(state, 0, out, length));
-      duplex_squeeze(state, 0, out + length, sizeof(tag));
+      duplex_encrypt(state, out, length);
+      duplex_pad(state);
+      duplex_squeeze(state, out + length, sizeof(tag));
       if (check(out, known[entry])) /* variable time */
         errx(EXIT_FAILURE, "Encryption failure with %zd-byte message and "
           "%zd-byte associated data", length, extra);
 
       memcpy(state, start, sizeof(state));
       duplex_permute(state);
-      duplex_pad(state, duplex_absorb(state, 0, in, extra));
-      duplex_pad(state, duplex_decrypt(state, 0, out, length));
-      duplex_squeeze(state, 0, tag, sizeof(tag));
+      duplex_absorb(state, in, extra);
+      duplex_pad(state);
+      duplex_decrypt(state, out, length);
+      duplex_pad(state);
+      duplex_squeeze(state, tag, sizeof(tag));
       if (memcmp(in, out, length)) /* variable time */
         errx(EXIT_FAILURE, "Decryption failure with %zd-byte message and "
           "%zd-byte associated data", length, extra);
