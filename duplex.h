@@ -44,7 +44,7 @@ typedef uint32_t uint32x4_t __attribute__((vector_size(16)));
 typedef uint32x4_t duplex_t[4];
 
 static inline void duplex_gimli(uint32x4_t state[3]) {
-  for (size_t round = 24; round > 0; round--) {
+  for (int round = 24; round > 0; round--) {
     uint32x4_t x = (uint32x4_t) duplex_swap((uint8x16_t) state[0], duplex_r24);
     uint32x4_t y = state[1] << 9 | state[1] >> 23;
     uint32x4_t z = state[2];
@@ -71,7 +71,7 @@ static inline void duplex_xoodoo(uint32x4_t state[3]) {
     0x060, 0x02c, 0x380, 0x0f0, 0x1a0, 0x012
   };
 
-  for (size_t round = 0; round < 12; round++) {
+  for (int round = 0; round < 12; round++) {
     uint32x4_t p = duplex_swap(state[0] ^ state[1] ^ state[2], 3, 0, 1, 2);
     uint32x4_t e = (p << 5 | p >> 27) ^ (p << 14 | p >> 18);
     state[0] ^= e, state[1] ^= e, state[2] ^= e;
@@ -96,7 +96,7 @@ static inline void duplex_absorb(duplex_t state, const uint8_t *data,
 
   while (1) {
     if (length < 16 || offset > 0) {
-      for (uint8_t i = offset; i < 16; i++, length--) {
+      for (int i = offset; i < 16; i++, length--) {
         if (length == 0)
           return;
         duplex_byte(state, i) ^= data[i - offset];
@@ -132,7 +132,7 @@ static inline void duplex_decrypt(duplex_t state, uint8_t *data,
 
   while (1) {
     if (length < 16 || offset > 0) {
-      for (uint8_t i = offset; i < 16; i++, length--) {
+      for (int i = offset; i < 16; i++, length--) {
         if (length == 0)
           return;
         data[i - offset] ^= duplex_byte(state, i);
@@ -161,7 +161,7 @@ static inline void duplex_encrypt(duplex_t state, uint8_t *data,
 
   while (1) {
     if (length < 16 || offset > 0) {
-      for (uint8_t i = offset; i < 16; i++, length--) {
+      for (int i = offset; i < 16; i++, length--) {
         if (length == 0)
           return;
         duplex_byte(state, i) ^= data[i - offset];
@@ -196,10 +196,10 @@ static inline void duplex_ratchet(duplex_t state) {
   uint8_t offset = duplex_counter(state) & 15;
   duplex_counter(state) += 16;
 
-  for (uint8_t i = offset; i < 16; i++)
+  for (int i = offset; i < 16; i++)
     duplex_byte(state, i) = 0;
   duplex_permute(state);
-  for (uint8_t i = 0; i < offset; i++)
+  for (int i = 0; i < offset; i++)
     duplex_byte(state, i) = 0;
 }
 
@@ -210,7 +210,7 @@ static inline void duplex_squeeze(duplex_t state, uint8_t *data,
 
   while (1) {
     if (length < 16 || offset > 0) {
-      for (uint8_t i = offset; i < 16; i++, length--) {
+      for (int i = offset; i < 16; i++, length--) {
         if (length == 0)
           return;
         data[i - offset] = duplex_byte(state, i);

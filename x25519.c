@@ -47,29 +47,29 @@ static void propagate(element_t x, limb_t over) {
   x[LIMBS - 1] &= ~((limb_t) 1 << (WBITS - 1));
 
   dlimb_t carry = over * 19;
-  for (uint8_t i = 0; i < LIMBS; i++)
+  for (int i = 0; i < LIMBS; i++)
     x[i] = carry = carry + x[i], carry >>= WBITS;
 }
 
 static void add(element_t out, const element_t x, const element_t y) {
   dlimb_t carry = 0;
-  for (uint8_t i = 0; i < LIMBS; i++)
+  for (int i = 0; i < LIMBS; i++)
     out[i] = carry = carry + x[i] + y[i], carry >>= WBITS;
   propagate(out, carry);
 }
 
 static void sub(element_t out, const element_t x, const element_t y) {
   sdlimb_t carry = -38;
-  for (uint8_t i = 0; i < LIMBS; i++)
+  for (int i = 0; i < LIMBS; i++)
     out[i] = carry = carry + x[i] - y[i], carry >>= WBITS;
   propagate(out, 1 + carry);
 }
 
 static void mul(element_t out, const element_t x, const element_t y) {
   limb_t accum[2 * LIMBS] = { 0 };
-  for (uint8_t i = 0; i < LIMBS; i++) {
+  for (int i = 0; i < LIMBS; i++) {
     dlimb_t carry = 0;
-    for (uint8_t j = 0; j < LIMBS; j++) {
+    for (int j = 0; j < LIMBS; j++) {
       carry += (dlimb_t) y[i] * x[j] + accum[i + j];
       accum[i + j] = carry, carry >>= WBITS;
     }
@@ -77,7 +77,7 @@ static void mul(element_t out, const element_t x, const element_t y) {
   }
 
   dlimb_t carry = 0;
-  for (uint8_t i = 0; i < LIMBS; i++) {
+  for (int i = 0; i < LIMBS; i++) {
     carry += (dlimb_t) 38 * accum[i + LIMBS] + accum[i];
     out[i] = carry, carry >>= WBITS;
   }
@@ -86,36 +86,36 @@ static void mul(element_t out, const element_t x, const element_t y) {
 
 static void mul1(element_t out, const element_t x, const limb_t y) {
   dlimb_t carry = 0;
-  for (uint8_t i = 0; i < LIMBS; i++)
+  for (int i = 0; i < LIMBS; i++)
     out[i] = carry += (dlimb_t) y * x[i], carry >>= WBITS;
   carry *= 38;
-  for (uint8_t i = 0; i < LIMBS; i++)
+  for (int i = 0; i < LIMBS; i++)
     out[i] = carry += out[i], carry >>= WBITS;
   propagate(out, carry);
 }
 
 static void mulsqrn(element_t out, const element_t x, const element_t y,
     uint8_t n) {
-  for (uint8_t i = 0; i < n; i++)
+  for (int i = 0; i < n; i++)
     mul(out, x, x), x = out;
   mul(out, out, y);
 }
 
 static limb_t canon(element_t x) {
   dlimb_t carry0 = 19;
-  for (uint8_t i = 0; i < LIMBS; i++)
+  for (int i = 0; i < LIMBS; i++)
     x[i] = carry0 += x[i], carry0 >>= WBITS;
   propagate(x, carry0);
 
   limb_t result = 0;
   sdlimb_t carry = -19;
-  for (uint8_t i = 0; i < LIMBS; i++)
+  for (int i = 0; i < LIMBS; i++)
     result |= x[i] = carry += x[i], carry >>= WBITS;
   return ((dlimb_t) result - 1) >> WBITS;
 }
 
 static void condswap(element_t x, element_t y, limb_t mask) {
-  for (uint8_t i = 0; i < LIMBS; i++) {
+  for (int i = 0; i < LIMBS; i++) {
     limb_t xor = (x[i] ^ y[i]) & mask;
     x[i] ^= xor, y[i] ^= xor;
   }
@@ -185,10 +185,10 @@ static void montmla(scalar_t out, const scalar_t x, const scalar_t y) {
   const limb_t montgomery = (limb_t) 0xd2b51da312547e1b;
   dlimb_t highcarry = 0;
 
-  for (uint8_t i = 0; i < LIMBS; i++) {
+  for (int i = 0; i < LIMBS; i++) {
     dlimb_t carry1 = 0, carry2 = 0;
     limb_t mand1 = x[i], mand2 = montgomery;
-    for (uint8_t j = 0; j < LIMBS; j++) {
+    for (int j = 0; j < LIMBS; j++) {
       carry1 += (dlimb_t) mand1 * y[j] + out[j];
       if (j == 0)
         mand2 *= (limb_t) carry1;
@@ -202,11 +202,11 @@ static void montmla(scalar_t out, const scalar_t x, const scalar_t y) {
   }
 
   sdlimb_t scarry = 0;
-  for (uint8_t i = 0; i < LIMBS; i++)
+  for (int i = 0; i < LIMBS; i++)
     out[i] = scarry = scarry + out[i] - scalar_l[i], scarry >>= WBITS;
 
   dlimb_t addl = -(scarry + highcarry), carry = 0;
-  for (uint8_t i = 0; i < LIMBS; i++)
+  for (int i = 0; i < LIMBS; i++)
     out[i] = carry += addl * scalar_l[i] + out[i], carry >>= WBITS;
 }
 
@@ -217,16 +217,16 @@ static void montmul(scalar_t out, const scalar_t x, const scalar_t y) {
 }
 
 static void swapin(limb_t *out, const uint8_t *in) {
-  for (uint8_t i = 0; i < LIMBS; i++) {
+  for (int i = 0; i < LIMBS; i++) {
     out[i] = (limb_t) *in++;
-    for (uint8_t j = 8; j < WBITS; j += 8)
+    for (int j = 8; j < WBITS; j += 8)
       out[i] |= (limb_t) *in++ << j;
   }
 }
 
 static void swapout(uint8_t *out, limb_t *in) {
-  for (uint8_t i = 0; i < LIMBS; i++) {
-    for (uint8_t j = 0; j < WBITS; j += 8)
+  for (int i = 0; i < LIMBS; i++) {
+    for (int j = 0; j < WBITS; j += 8)
       *out++ = (uint8_t) (in[i] >> j);
   }
 }
@@ -286,7 +286,7 @@ void x25519_invert(x25519_t out, const x25519_t scalar) {
 
   montmul(z[0], x, scalar_r2);
   montmul(z[7], z[0], z[0]);
-  for (uint8_t i = 0; i < 7; i++)
+  for (int i = 0; i < 7; i++)
     montmul(z[i + 1], z[i], z[7]);
   memcpy(y, z[0], sizeof(scalar_t));
 
