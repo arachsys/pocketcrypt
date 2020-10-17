@@ -161,6 +161,11 @@ Although duplex.h should work on both little- and big-endian architectures,
 it will refuse to build on a mixed-endian system even if you contrive one
 with sufficient gcc support.
 
+At the time of writing, duplex.h runs about 10% faster compiled with clang
+10.0.1 than with gcc 10.2.0 on Intel Skylake. Compared to bulk encryption
+and decryption, byte-by-byte duplex calls achieve 66% and 60% throughput on
+gcc and clang respectively, rising to 96% and 99% for 16-byte operations.
+
 For information on Gimli, see https://gimli.cr.yp.to/gimli-20170627.pdf and
 the documentation at https://csrc.nist.gov/projects/lightweight-cryptography
 where Gimli is a candidate. Sponge and duplex constructions are well-covered
