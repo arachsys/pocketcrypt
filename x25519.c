@@ -343,16 +343,33 @@ void x25519_point(x25519_t out, const x25519_t element) {
   swapout(out, x);
 }
 
+void x25519_scalar(x25519_t out, const x25519_t scalar) {
+  const scalar_t k = {
+    LIMB(0x6106e529e2dc2f79), LIMB(0x07d39db37d1cdad0),
+    LIMB(0x0000000000000000), LIMB(0x0600000000000000)
+  };
+
+  scalar_t x;
+  swapin(x, scalar);
+  montmul(x, x, k);
+  montmul(x, x, scalar_r2);
+
+  dlimb_t carry = 0;
+  for (int i = 0; i < LIMBS; i++)
+    x[i] = carry += (dlimb_t) x[i] << 3, carry >>= WBITS;
+  swapout(out, x);
+}
+
 void x25519_sign(x25519_t response, const x25519_t challenge,
     const x25519_t ephemeral, const x25519_t identity) {
-  scalar_t scalar1, scalar2, scalar3;
-  swapin(scalar1, ephemeral);
-  swapin(scalar2, identity);
-  swapin(scalar3, challenge);
+  scalar_t x, y, z;
+  swapin(x, ephemeral);
+  swapin(y, identity);
+  swapin(z, challenge);
 
-  montmla(scalar1, scalar2, scalar3);
-  montmul(scalar2, scalar1, scalar_r2);
-  swapout(response, scalar2);
+  montmla(x, y, z);
+  montmul(y, x, scalar_r2);
+  swapout(response, y);
 }
 
 int x25519_verify(const x25519_t response, const x25519_t challenge,

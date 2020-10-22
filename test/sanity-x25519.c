@@ -82,6 +82,19 @@ int main(void) {
       errx(EXIT_FAILURE, "Invalid scalar inversion succeeded");
   }
 
+  for (size_t i = 0; i < 1000; i++) {
+    x25519_t scalar1, scalar2, point1, point2;
+    generate(scalar1);
+    x25519_scalar(scalar2, scalar1);
+    if (scalar2[0] & 7)
+      errx(EXIT_FAILURE, "Scalar representative is not torsion-free");
+
+    x25519(point1, scalar1, x25519_generator);
+    x25519(point2, scalar2, x25519_generator);
+    if (memcmp(point1, point2, sizeof(point1)) != 0) /* variable time */
+      errx(EXIT_FAILURE, "Scalar representative is not equivalent");
+  }
+
   printf("Key exchange and signatures sanity-checked\n");
   return EXIT_SUCCESS;
 }

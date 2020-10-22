@@ -231,18 +231,18 @@ For an overview of X25519, see https://cr.yp.to/ecdh/curve25519-20060209.pdf
 and https://tools.ietf.org/html/rfc7748 sections 4.1 and 6.1.
 
 
-Torsion safety and small-subgroup attacks
------------------------------------------
+Small-subgroup confinement attacks
+----------------------------------
 
-Some protocols require neither participant to have sole control of a shared
+Some protocols require that neither participant has sole control of a shared
 secret. However, the curve has cofactor 8 and its twist has cofactor 4, so
-if an attacker submits a torsion point as a public key, at most 8 distinct
-product values are possible.
+there exist a handful of low-order torsion points which generate at most 8
+distinct scalar products. An attacker might submit these as public keys.
 
-Detect this non-contributory behaviour by choosing secret keys that are
-multiples of eight with sk[0] &= 0xf8. These annihilate torsion components.
-If x25519() returns 0, the scalar product is non-zero and the key exchange
-was safe. It is preferable to design protocols that do not rely on this.
+The simplest way to detect this non-contributory behaviour is to generate
+secret keys as multiples of eight by masking with sk[0] &= 0xf8 after
+randomising sk[]. Such keys annihilate any torsion component, so if x25519()
+returns 0, the scalar product is non-zero and the key exchange was safe.
 
 RFC 7748 itself specifies a clamping operation on both scalars and points,
 implemented as clamp() in test/known-x25519.c. Alas, rather than framing it
@@ -250,6 +250,23 @@ as part of key generation, the RFC bundles it into key exchange. This is
 unfortunate as it is not well-defined modulo the base point order so doesn't
 preserve group structure, causing problems if (x + y)P = xP + yP is needed,
 such as with Schnorr signatures. It is not bundled into this x25519().
+
+For cases where the scalar is derived rather than generated (perhaps from
+hierarchical key assignment) and where the group structure needs to be
+preserved, a cleaner option is to map it to a torsion-safe representative.
+
+Given any 32-byte scalar, use
+
+  x25519_scalar(out, scalar)
+
+to cheaply calculate a representative congruent to the original modulo the
+order of the base point, and so whose product with valid public keys in the
+prime-order subgroup is unchanged, but which is also a multiple of eight to
+annihilate any torsion component under scalar multiplication.
+
+None of this complexity is needed for standard Diffie-Hellman exchanges, and
+wherever possible, it is preferable to design protocols that do not rely on
+contributory behaviour.
 
 
 Scalar inversion
@@ -277,7 +294,8 @@ parameter u = 2. See https://elligator.cr.yp.to/elligator-20130828.pdf for
 more details.
 
 A point on the full curve is returned, not necessarily in the prime-order
-subgroup. Scalar multiply by eight if torsion-free points are required.
+subgroup. If an attacker has control of the input element in a protocol, the
+earlier discussion of small-subgroup confinement might be relevant.
 
 The map is efficiently invertible and its range is around half of the points
 on the curve. Assuming the probability of efficiently calculating discrete
@@ -289,7 +307,7 @@ parties already share a secret duplex state, an ephemeral key exchange can
 be authenticated by substituting a secret point for the standard base point.
 Squeeze a uniformly-distributed x25519_t field element from the shared
 state, map it to a curve point using this function, then pick multiples of
-eight as ephemeral key-exchange secrets to avoid small subgroup attacks.
+eight as ephemeral key-exchange secrets to avoid small-subgroup attacks.
 
 
 Signatures
