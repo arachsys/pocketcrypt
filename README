@@ -29,7 +29,7 @@ Initialising and permuting state
 --------------------------------
 
 Define duplex_permute as duplex_gimli or duplex_xoodoo before including
-duplex.h to explictly select a permutation. The default is duplex_gimli.
+duplex.h to explictly select a permutation. The default is duplex_xoodoo.
 
 Both permutations operate over a state of twelve 32-bit words, manipulated
 here as a vector array uint32x4_t[3]. When individual bytes of the state are
@@ -172,8 +172,9 @@ where Gimli is a candidate. Sponge and duplex constructions are well-covered
 by https://eprint.iacr.org/2011/499.pdf including generic security analysis.
 
 For information on Xoodoo, see https://keccak.team/xoodoo.html and
-https://eprint.iacr.org/2018/767.pdf - but note the duplex construction here
-is the Gimli one rather than the more complicated Xoodyak cyclist object.
+https://eprint.iacr.org/2018/767.pdf - but note the Pocketcrypt duplex
+construction is the simple one specified for Gimli rather than the more
+complicated Xoodyak cyclist object.
 
 
 X25519

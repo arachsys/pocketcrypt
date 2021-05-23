@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#define duplex_permute duplex_xoodoo
 #include "duplex.h"
 
 static void chunk_absorb(duplex_t state, uint8_t *buffer, size_t length,

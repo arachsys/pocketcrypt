@@ -1,6 +1,6 @@
 #!/bin/sh -e
 
-CC=${CC:-gcc}
+CC=${CC:-cc}
 CFLAGS=${CFLAGS:--flto -march=native -O3 -Wall -Wfatal-errors}
 
 cd -- "${0%/*}/.."

@@ -36,7 +36,7 @@
 #define duplex_rate 16
 
 #ifndef duplex_permute
-#define duplex_permute duplex_gimli
+#define duplex_permute duplex_xoodoo
 #endif
 
 typedef uint8_t uint8x16_t __attribute__((vector_size(16)));

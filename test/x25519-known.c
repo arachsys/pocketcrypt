@@ -2024,9 +2024,9 @@ int main(void) {
 
     clamp(sk, pk); /* Wycheproof vectors assume RFC 7822 clamping */
     if (x25519(ky, sk, pk) != validity[i])
-      errx(EXIT_FAILURE, "Known x25519 failure on test vector %zd", i + 1);
+      errx(EXIT_FAILURE, "Known X25519 failure on test vector %zd", i + 1);
     if (memcmp(kx, ky, sizeof(x25519_t)) != 0)
-      errx(EXIT_FAILURE, "Known x25519 failure on test vector %zd", i + 1);
+      errx(EXIT_FAILURE, "Known X25519 failure on test vector %zd", i + 1);
   }
 
   for (size_t i = 0; i < sizeof(element) / sizeof(char *); i++) {
@@ -2039,6 +2039,6 @@ int main(void) {
       errx(EXIT_FAILURE, "Elligator failure on test vector %zd", i + 1);
   }
 
-  printf("Reference x25519 values checked\n");
+  printf("Reference X25519 values checked\n");
   return EXIT_SUCCESS;
 }
