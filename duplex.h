@@ -7,10 +7,8 @@
 #include <stdint.h>
 
 #if defined __clang_major__ && __clang_major__ >= 4
-#define duplex_copy __builtin_memcpy
 #define duplex_swap(x, ...) __builtin_shufflevector(x, x, __VA_ARGS__)
 #elif defined __GNUC__ && __GNUC__ >= 5
-#define duplex_copy __builtin_memcpy
 #define duplex_swap(x, ...) __builtin_shuffle(x, (typeof(x)) { __VA_ARGS__ })
 #else
 #error Vector extensions require clang >= 4.0.0 or gcc >= 5.1.0
@@ -31,6 +29,7 @@
 #error Byte order could not be determined
 #endif
 
+#define duplex_copy __builtin_memcpy
 #define duplex_counter(state) ((uint64_t *) state)[6]
 #define duplex_words(bytes) ((uint32x4_t) duplex_bytes(bytes))
 #define duplex_rate 16
@@ -226,6 +225,11 @@ static inline void duplex_squeeze(duplex_t state, uint8_t *data,
       duplex_permute(state);
     }
   }
+}
+
+static inline void duplex_zero(void *data, size_t length) {
+  __builtin_memset(data, 0, length);
+  __asm__ __volatile__ ("" :: "r" (data) : "memory");
 }
 
 #endif

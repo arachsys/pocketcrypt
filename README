@@ -147,6 +147,17 @@ data without inadvertently revealing the location of the first discrepancy
 through the time taken to detect it.
 
 
+Clearing sensitive data
+-----------------------
+
+Clear sensitive data such as keys or cleartext using
+
+  duplex_zero(data, length);
+
+Unlike memset() or bzero(), the compiler is forbidden to optimise this away
+as a 'dead store' even if the buffer is subsequently discarded or unused.
+
+
 Implementation notes
 --------------------
 
