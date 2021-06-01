@@ -368,6 +368,51 @@ See https://eprint.iacr.org/2012/309.pdf for details on STROBE signatures,
 and also https://eprint.iacr.org/2017/518.pdf for the qDSA scheme.
 
 
+Secret sharing
+==============
+
+A simple constant-time implementation of Shamir's secret sharing scheme over
+bitsliced GF(256) is included, allowing 32-byte keys to be divided between
+up to 255 key-holders, then later reconstructed from a sufficiently large
+subset of shares.
+
+Prototypes for these operations are in shamir.h and code calling them must
+be linked against shamir.c. Copy both files into your tree to use them.
+
+
+Splitting secrets
+-----------------
+
+To generate n 33-byte shares of a 32-byte secret, call
+
+  shamir_split(share, index, threshold, secret, entropy);
+
+for each index = 0, 1, ..., n - 1, where threshold is the minimum number of
+shares that will be required to reconstruct the secret. index and threshold
+must not exceed 254 and 255 respectively.
+
+The scheme's security depends heavily on the block of 32 * (threshold - 1)
+bytes supplied as uint8_t entropy[threshold - 1][32], which is used to set
+random coefficients of a polynomial over GF(256). Randomise this before
+first calling shamir_split(), leave it unchanged for subsequent invocations,
+then securely discard it once all the shares are generated.
+
+Flaws in the randomness of the entropy (or leaks of it) will compromise the
+secret.
+
+
+Reconstructing secrets
+----------------------
+
+Given a quorum in uint8_t shares[][33], reconstruct the 32-byte secret with
+
+  shamir_combine(secret, count, shares);
+
+where count is the number of 33-byte shares provided. This will silently
+generate an incorrect secret if too few shares are supplied or if they are
+inconsistent/corrupt.
+
+
 Copying
 =======
 
