@@ -352,9 +352,10 @@ in the corresponding sigma protocol. Absorb the ephemeral public key on top
 of a duplex state before squeezing a challenge to sign that state.
 
 Signatures are malleable: if s' = ± s (mod l) where s is a valid response,
-s' is also a valid response. As with all Schnorr signatures, leaking or
-reusing an ephemeral secret trivially compromises the identity secret, and
-more generally, any bias in random key generation across many signatures
+s' is also a valid response. Similarly, a valid signature for a challenge c
+verifies for any c' = ± c (mod l). As with all Schnorr signatures, leaking
+or reusing an ephemeral secret trivially compromises the identity secret,
+and more generally, bias in random key generation across many signatures
 will leak key bits.
 
 For deterministic signatures, clone the duplex state after absorbing the
