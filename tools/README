@@ -98,3 +98,21 @@ fails, an error is returned.
 These signatures use Ed25519-style deterministic nonces as described in the
 Pocketcrypt documentation. This eliminates the risk of reusing an ephemeral
 key and the need for unbiased entropy during signing.
+
+
+Secret sharing
+--------------
+
+To divide a 32-byte keyfile SECRET into 33-byte share files, run
+
+  keysplit THRESHOLD SECRET SHARE...
+
+where 0 < THRESHOLD < 256 is the minimum quorum required to reconstruct the
+secret. It must not exceed the total number of shares.
+
+To recombine a set of share files into a keyfile SECRET, use
+
+  keymerge SECRET SHARE...
+
+If too few shares are provided, a random secret will be derived. This error
+case is not detected.
