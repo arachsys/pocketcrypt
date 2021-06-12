@@ -1,0 +1,11 @@
+#!/bin/sh -e
+
+CC=${CC:-cc}
+CFLAGS=${CFLAGS:--flto -march=native -O3 -Wall -Wfatal-errors}
+
+cd -- "${0%/*}"
+for TOOL in *.c; do
+  $CC $CFLAGS $LDFLAGS -I .. -o "${1:-$PWD}/${TOOL%.c}" $TOOL \
+    $(grep -q -x -F '#include "shamir.h"' $TOOL && echo ../shamir.c) \
+    $(grep -q -x -F '#include "x25519.h"' $TOOL && echo ../x25519.c)
+done

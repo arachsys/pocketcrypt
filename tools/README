@@ -1,0 +1,100 @@
+Pocketcrypt examples
+====================
+
+Run tools/build to compile the tools within the source tree, or
+tools/build BINDIR to install them into a specified directory.
+
+For simplicity, this code assumes getentropy() is available to securely
+generate keys/nonces, and that the kernel will not leak memory contents
+after a process exits.
+
+
+Key generation
+--------------
+
+To generate an X25519 keypair, run
+
+  keypair SK PK
+
+This writes a 32-byte secret scalar and 32-byte public identity to files SK
+and PK respectively. The scalar is uniformly distributed modulo the order
+of the base point and divisible by the cofactor 8, so it safely annihilates
+any torsion component during key exchange. It is invariant under RFC 7748
+clamping for ease of interoperation with other tools and libraries.
+
+
+Authenticated encryption
+------------------------
+
+To encrypt data from the secret key in keyfile SK to the public identity in
+keyfile PK, use
+
+  encrypt SK PK
+
+supplying the plaintext on stdin. This writes encrypted data (comprising a
+16-byte random nonce, ciphertext and 16-byte authentication tag) to stdout.
+
+To authenticate and decrypt data sent from the public identity in keyfile PK
+to the secret key in keyfile SK, run
+
+  decrypt SK PK
+
+supplying the encrypted data (nonce, ciphertext and authentication tag) on
+stdin. Decrypted plaintext is written to stdout only if authentication
+succeeds. Otherwise, an error is generated.
+
+Encryption is implemented as a streaming operation, but decryption needs to
+buffer the entire ciphertext in memory to authenticate it before plaintext
+can safely be released. Alternative strategies might include streaming
+plaintext to a temporary file before releasing it, or sending individually
+tagged chunks which can be independently authenticated and released.
+
+For keypairs (a, A) and (b, B), the same shared secret abG results from aB
+and bA. Messages can therefore be encrypted and decrypted using either the
+sender's secret or the recipient's secret, making them repudiable: anyone
+who can decrypt and authenticate a message could also have forged it.
+
+
+Anonymous encryption
+--------------------
+
+To encrypt data anonymously to the public identity in keyfile PK, use
+
+  encrypt PK
+
+supplying the plaintext on stdin. This writes a 32-byte ephemeral identity,
+ciphertext and 16-byte authentication tag to stdout.
+
+To authenticate and decrypt data sent anonymously to the secret key in
+keyfile SK, run
+
+  decrypt SK
+
+supplying the encrypted data (ephemeral identity, ciphertext and tag) on
+stdin. Decrypted plaintext is written to stdout if authentication succeeds.
+Otherwise, an error is returned.
+
+
+Signatures
+----------
+
+To sign data on stdin using the secret key in keyfile SK and optional
+corresponding public identity PK, run
+
+  sign SK [PK]
+
+The 64-byte signature is written to stdout. If PK is not supplied, it is
+calculated from SK at the cost of an additional scalar multiplication.
+
+To verify a signature file SIG corresponding to the public identity in
+keyfile PK, use
+
+  verify PK [SIG]
+
+passing the signed data on stdin. SIG is optional: if it is omitted, the
+64-byte signature is read from stdin before the message. If verification
+fails, an error is returned.
+
+These signatures use Ed25519-style deterministic nonces as described in the
+Pocketcrypt documentation. This eliminates the risk of reusing an ephemeral
+key and the need for unbiased entropy during signing.
