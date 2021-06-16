@@ -5,7 +5,7 @@
 #include <string.h>
 
 typedef uint8_t x25519_t[32];
-const x25519_t x25519_generator = { 9 };
+const x25519_t x25519_base = { 9 };
 
 #ifdef __SIZEOF_INT128__
 
@@ -379,7 +379,7 @@ int x25519_verify(const x25519_t response, const x25519_t challenge,
   limb_t *z2 = xs[3], *x3 = xs[4], *z3 = xs[5], *t1 = xs[6];
 
   x25519_core(xs, challenge, identity);
-  x25519_core(xs + 2, response, x25519_generator);
+  x25519_core(xs + 2, response, x25519_base);
 
   memcpy(xs + 4, xs, 2 * sizeof(element_t));
   ladder1(xs + 2);

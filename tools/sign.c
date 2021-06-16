@@ -33,7 +33,7 @@ int main(int argc, char **argv) {
   if (argv[2])
     load(argv[2], identity, sizeof(identity));
   else
-    x25519(identity, secret, x25519_generator);
+    x25519(identity, secret, x25519_base);
 
   process(state);
   duplex_absorb(state, identity, sizeof(identity));
@@ -41,7 +41,7 @@ int main(int argc, char **argv) {
   duplex_copy(seed, state, sizeof(state));
   duplex_absorb(seed, secret, sizeof(secret));
   duplex_squeeze(seed, scalar, sizeof(scalar));
-  x25519(point, scalar, x25519_generator);
+  x25519(point, scalar, x25519_base);
 
   duplex_absorb(state, point, sizeof(point));
   duplex_squeeze(state, challenge, sizeof(challenge));

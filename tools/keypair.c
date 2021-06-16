@@ -18,7 +18,7 @@ int main(int argc, char **argv) {
   scalar[0] &= 0xf8;
   scalar[sizeof(x25519_t) - 1] &= 0x7f;
   scalar[sizeof(x25519_t) - 1] |= 0x40;
-  x25519(point, scalar, x25519_generator);
+  x25519(point, scalar, x25519_base);
 
   save(argv[1], scalar, sizeof(scalar));
   save(argv[2], point, sizeof(point));

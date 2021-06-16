@@ -29,8 +29,8 @@ int main(void) {
     generate(secret1);
     generate(secret2);
 
-    x25519(public1, secret1, x25519_generator);
-    x25519(public2, secret2, x25519_generator);
+    x25519(public1, secret1, x25519_base);
+    x25519(public2, secret2, x25519_base);
 
     x25519(shared1, secret1, public2);
     x25519(shared2, secret2, public1);
@@ -51,8 +51,8 @@ int main(void) {
     generate(challenge);
     x25519_sign(response, challenge, ephemeral, identity);
 
-    x25519(ephemeral, ephemeral, x25519_generator);
-    x25519(identity, identity, x25519_generator);
+    x25519(ephemeral, ephemeral, x25519_base);
+    x25519(identity, identity, x25519_base);
     if (x25519_verify(response, challenge, ephemeral, identity) != 0)
       errx(EXIT_FAILURE, "Valid signature failed to verify");
 
@@ -66,8 +66,8 @@ int main(void) {
 
     generate(scalar1);
     generate(scalar2);
-    x25519(point1, scalar1, x25519_generator);
-    x25519(point2, scalar2, x25519_generator);
+    x25519(point1, scalar1, x25519_base);
+    x25519(point2, scalar2, x25519_base);
     x25519(point2, scalar1, point2);
 
     x25519_invert(inverse, scalar2);
@@ -89,8 +89,8 @@ int main(void) {
     if (scalar2[0] & 7)
       errx(EXIT_FAILURE, "Scalar representative is not torsion-free");
 
-    x25519(point1, scalar1, x25519_generator);
-    x25519(point2, scalar2, x25519_generator);
+    x25519(point1, scalar1, x25519_base);
+    x25519(point2, scalar2, x25519_base);
     if (memcmp(point1, point2, sizeof(point1)) != 0) /* variable time */
       errx(EXIT_FAILURE, "Scalar representative is not equivalent");
   }

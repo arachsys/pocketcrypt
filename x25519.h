@@ -6,7 +6,7 @@
 #include <stdint.h>
 
 typedef uint8_t x25519_t[32];
-extern const x25519_t x25519_generator;
+extern const x25519_t x25519_base;
 
 extern int x25519(x25519_t out, const x25519_t scalar,
   const x25519_t point);

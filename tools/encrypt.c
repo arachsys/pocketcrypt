@@ -31,7 +31,7 @@ int main(int argc, char **argv) {
 
   if (argc == 2) {
     randomise(scalar, sizeof(scalar));
-    x25519(point, scalar, x25519_generator);
+    x25519(point, scalar, x25519_base);
     put(out, point, sizeof(point));
     load(argv[1], point, sizeof(point));
   } else if (argc == 3) {

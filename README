@@ -201,10 +201,10 @@ linked against x25519.c. To use the library, copy both files into your tree.
 
 Both curve points (represented by Montgomery x-coordinates) and scalars are
 manipulated as 32-byte little-endian arrays. The correct-sized array type
-and standard base point are defined by x25519.h as
+and standard base point (generator) are defined by x25519.h as
 
   typedef uint8_t x25519_t[32];
-  const x25519_t x25519_generator = { 9 };
+  const x25519_t x25519_base = { 9 };
 
 x25519.c assumes constant-time integer multiplication. This is valid for
 modern x86-64 and arm64 processors, but variable-time multiplies on some
@@ -223,7 +223,7 @@ detect non-contributory behaviour as described below.
 
 Generate a key pair (sk, pk) by randomising sk then calling
 
-  x25519(pk, sk, x25519_generator);
+  x25519(pk, sk, x25519_base);
 
 to calculate pk.
 

@@ -38,7 +38,7 @@ static double sign(size_t repeat) {
   clock_t start = clock();
   for (size_t i = 0; i < repeat; i++) {
     x25519_sign(buffer, buffer + 32, buffer + 64, buffer + 96);
-    x25519(buffer + 64, buffer + 64, x25519_generator);
+    x25519(buffer + 64, buffer + 64, x25519_base);
   }
   return 1.0e6 * (clock() - start) / CLOCKS_PER_SEC / repeat;
 }
