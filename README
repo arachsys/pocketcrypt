@@ -414,6 +414,29 @@ generate an incorrect secret if too few shares are supplied or if they are
 inconsistent/corrupt.
 
 
+Testing and installing the library
+==================================
+
+To run the test suite and basic benchmarks, use
+
+  make test
+
+The easiest way to link against this library is to copy the .c and .h files
+directly into your source tree. However, an object library can also be built
+and installed along with the header files. Run
+
+  make install-shared
+
+to install libpocketcrypt.so into PREFIX/lib and the pocketcrypt .h files
+into PREFIX/include/pocketcrypt. Similarly
+
+  make install-static
+
+installs libpocketcrypt.a and the header files. The usual DESTDIR and PREFIX
+variables are respected, as well as CC, CFLAGS, BINDIR, INCDIR and LIBDIR
+for more detailed control of compilation and install paths.
+
+
 Copying
 =======
 

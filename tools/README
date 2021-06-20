@@ -1,8 +1,13 @@
 Pocketcrypt examples
 ====================
 
-Run tools/build to compile the tools within the source tree, or
-tools/build BINDIR to install them into a specified directory.
+To compile these example tools within the source tree, run
+
+  make tools
+
+and to install them into $HOME/bin (for example), use
+
+  make install-tools BINDIR=$HOME/bin
 
 For simplicity, this code assumes getentropy() is available to securely
 generate keys/nonces, and that the kernel will not leak memory contents
