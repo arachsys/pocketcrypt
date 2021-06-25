@@ -11,9 +11,10 @@ override CFLAGS += -I.
 test: $(basename $(wildcard test/*.c))
 	@echo $(foreach TEST,$^,&& $(TEST))
 
-test/x25519-known test/x25519-sanity test/x25519-speed: x25519.[ch]
 test/duplex-known test/duplex-sanity test/duplex-speed: duplex.h
 test/gimli-known test/gimli-sanity test/gimli-speed: duplex.h
+test/shamir-known test/shamir-sanity test/shamir-speed: shamir.[ch]
+test/x25519-known test/x25519-sanity test/x25519-speed: x25519.[ch]
 
 tools: $(basename $(wildcard tools/*.c))
 
