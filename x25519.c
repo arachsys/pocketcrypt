@@ -2,7 +2,8 @@
 /* Adapted from Mike Hamburg's STROBE: https://strobe.sourceforge.io/ */
 
 #include <stdint.h>
-#include <string.h>
+#define memcpy __builtin_memcpy
+#define memset __builtin_memset
 
 typedef uint8_t x25519_t[32];
 const x25519_t x25519_base = { 9 };
