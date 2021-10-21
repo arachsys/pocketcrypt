@@ -75,13 +75,13 @@ static inline void duplex_xoodoo(uint32x4_t state[3]) {
     uint32x4_t e = (p << 5 | p >> 27) ^ (p << 14 | p >> 18);
     state[0] ^= e, state[1] ^= e, state[2] ^= e;
 
-    state[0] ^= (uint32x4_t) { rk[round], 0, 0, 0 };
-    state[1] = duplex_swap(state[1], 3, 0, 1, 2);
-    state[2] = state[2] << 11 | state[2] >> 21;
+    uint32x4_t x = state[0] ^ (uint32x4_t) { rk[round], 0, 0, 0 };
+    uint32x4_t y = duplex_swap(state[1], 3, 0, 1, 2);
+    uint32x4_t z = state[2] << 11 | state[2] >> 21;
 
-    state[0] ^= ~state[1] & state[2];
-    state[1] ^= ~state[2] & state[0];
-    state[2] ^= ~state[0] & state[1];
+    state[0] = x ^ (~y & z);
+    state[1] = y ^ (~z & x);
+    state[2] = z ^ (~x & y);
 
     state[1] = state[1] << 1 | state[1] >> 31;
     state[2] = (uint32x4_t) duplex_swap((uint8x16_t) state[2], duplex_rho);
