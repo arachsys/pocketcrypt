@@ -210,6 +210,11 @@ x25519.c assumes constant-time integer multiplication. This is valid for
 modern x86-64 and arm64 processors, but variable-time multiplies on some
 embedded platforms may introduce timing leaks.
 
+The library currently runs faster compiled with clang -O3 than with gcc -O3.
+For best performance on clang, build with aggressive function inlining using
+-mllvm -inline-threshold=5000 to obtain 30-35% faster code. However, raising
+the analogous -finline-limit value on gcc appears to hinder performance.
+
 
 Scalar multiplication
 ---------------------

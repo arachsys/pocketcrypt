@@ -152,9 +152,9 @@ static limb_t invsqrt(element_t out, const element_t x) {
   return ~canon(u) & ~canon(v);
 }
 
-static void ladder1(element_t xs[5]) {
+static void ladder1(element_t x2, element_t z2, element_t x3, element_t z3,
+    element_t t1) {
   const limb_t a24 = 121665;
-  limb_t *x2 = xs[0], *z2 = xs[1], *x3 = xs[2], *z3 = xs[3], *t1 = xs[4];
 
   add(t1, x2, z2);
   sub(z2, x2, z2);
@@ -171,9 +171,8 @@ static void ladder1(element_t xs[5]) {
   add(z2, z2, t1);
 }
 
-static void ladder2(element_t xs[5], const element_t x1) {
-  limb_t *x2 = xs[0], *z2 = xs[1], *x3 = xs[2], *z3 = xs[3], *t1 = xs[4];
-
+static void ladder2(const element_t x1, element_t x2, element_t z2,
+    element_t x3, element_t z3, const element_t t1) {
   mul(z3, z3, z3);
   mul(z3, z3, x1);
   mul(x3, x3, x3);
@@ -232,15 +231,16 @@ static void swapout(uint8_t *out, limb_t *in) {
   }
 }
 
-static void x25519_core(element_t xs[5], const x25519_t scalar,
+static void x25519_core(element_t x2, element_t z2, const x25519_t scalar,
     const x25519_t point) {
-  element_t x1;
-  swapin(x1, point);
+  element_t x1, x3, z3, t1;
+  limb_t swap = 0;
 
-  limb_t swap = 0, *x2 = xs[0], *z2 = xs[1], *x3 = xs[2], *z3 = xs[3];
-  memset(xs, 0, 4 * sizeof(element_t));
+  swapin(x1, point);
+  memcpy(x2, one, sizeof(element_t));
+  memcpy(z2, zero, sizeof(element_t));
   memcpy(x3, x1, sizeof(element_t));
-  x2[0] = z3[0] = 1;
+  memcpy(z3, one, sizeof(element_t));
 
   for (int i = 255; i >= 0; i--) {
     uint8_t byte = scalar[i >> 3];
@@ -249,35 +249,34 @@ static void x25519_core(element_t xs[5], const x25519_t scalar,
     condswap(z2, z3, swap ^ bit);
     swap = bit;
 
-    ladder1(xs);
-    ladder2(xs, x1);
+    ladder1(x2, z2, x3, z3, t1);
+    ladder2(x1, x2, z2, x3, z3, t1);
   }
   condswap(x2, x3, swap);
   condswap(z2, z3, swap);
 }
 
 int x25519(x25519_t out, const x25519_t scalar, const x25519_t point) {
-  element_t xs[5];
-  limb_t *x2 = xs[0], *z2 = xs[1], *x3 = xs[2], *z3 = xs[3], *t1 = xs[4];
-  x25519_core(xs, scalar, point);
+  element_t t, u, v, x, z;
+  x25519_core(x, z, scalar, point);
 
-  mulsqrn(x3, z2, z2, 1);
-  mulsqrn(x3, x3, z2, 1);
-  mulsqrn(t1, x3, x3, 3);
-  mulsqrn(x3, t1, t1, 6);
-  mulsqrn(z3, x3, z2, 1);
-  mulsqrn(z3, z3, x3, 12);
-  mulsqrn(t1, z3, z3, 25);
-  mulsqrn(x3, t1, z3, 25);
-  mulsqrn(x3, x3, t1, 50);
-  mulsqrn(z3, x3, x3, 125);
-  mulsqrn(z3, z3, z2, 2);
-  mulsqrn(z3, z3, z2, 2);
-  mulsqrn(z3, z3, z2, 1);
-  mul(x2, x2, z3);
+  mulsqrn(u, z, z, 1);
+  mulsqrn(u, u, z, 1);
+  mulsqrn(v, u, u, 3);
+  mulsqrn(u, v, v, 6);
+  mulsqrn(t, u, z, 1);
+  mulsqrn(t, t, u, 12);
+  mulsqrn(v, t, t, 25);
+  mulsqrn(u, v, t, 25);
+  mulsqrn(u, u, v, 50);
+  mulsqrn(t, u, u, 125);
+  mulsqrn(t, t, z, 2);
+  mulsqrn(t, t, z, 2);
+  mulsqrn(t, t, z, 1);
+  mul(x, x, t);
 
-  limb_t result = canon(x2);
-  swapout(out, x2);
+  limb_t result = canon(x);
+  swapout(out, x);
   return result;
 }
 
@@ -375,15 +374,13 @@ void x25519_sign(x25519_t response, const x25519_t challenge,
 
 int x25519_verify(const x25519_t response, const x25519_t challenge,
     const x25519_t ephemeral, const x25519_t identity) {
-  element_t xs[7];
-  limb_t *x1 = xs[0], *z1 = xs[1];
-  limb_t *z2 = xs[3], *x3 = xs[4], *z3 = xs[5], *t1 = xs[6];
+  element_t x1, z1, x2, z2, x3, z3, t1;
+  x25519_core(x1, z1, challenge, identity);
+  x25519_core(x2, z2, response, x25519_base);
 
-  x25519_core(xs, challenge, identity);
-  x25519_core(xs + 2, response, x25519_base);
-
-  memcpy(xs + 4, xs, 2 * sizeof(element_t));
-  ladder1(xs + 2);
+  memcpy(x3, x1, sizeof(element_t));
+  memcpy(z3, z1, sizeof(element_t));
+  ladder1(x2, z2, x3, z3, t1);
   mul(z2, z2, x1);
   mul(z2, z2, z1);
 
