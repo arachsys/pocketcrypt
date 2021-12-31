@@ -20,7 +20,7 @@
 #define duplex_r24 1, 2, 3, 0, 5, 6, 7, 4, 9, 10, 11, 8, 13, 14, 15, 12
 #define duplex_rho 11, 8, 9, 10, 15, 12, 13, 14, 3, 0, 1, 2, 7, 4, 5, 6
 #elif defined __BYTE_ORDER__ && __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
-#define duplex_byte(state, i) ((uint8_t *) state)[i ^ 3]
+#define duplex_byte(state, i) ((uint8_t *) state)[(i) ^ ((i) < 48 ? 3 : 7)]
 #define duplex_bytes(words) duplex_swap((uint8x16_t) words, \
   3, 2, 1, 0, 7, 6, 5, 4, 11, 10, 9, 8, 15, 14, 13, 12)
 #define duplex_r24 3, 0, 1, 2, 7, 4, 5, 6, 11, 8, 9, 10, 15, 12, 13, 14
@@ -31,6 +31,7 @@
 
 #define duplex_copy __builtin_memcpy
 #define duplex_counter(state) ((uint64_t *) state)[6]
+#define duplex_extra(state) ((uint64_t *) state)[7]
 #define duplex_words(bytes) ((uint32x4_t) duplex_bytes(bytes))
 #define duplex_rate 16
 

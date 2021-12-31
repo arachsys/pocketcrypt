@@ -158,6 +158,34 @@ Unlike memset() or bzero(), the compiler is forbidden to optimise this away
 as a 'dead store' even if the buffer is subsequently discarded or unused.
 
 
+Serialising duplex state
+------------------------
+
+Use duplex_byte(state, index) to dereference individual bytes of a duplex
+state as lvalues, where 0 <= index < sizeof(duplex_t). This macro may
+evaluate the index argument more than once.
+
+The resulting representation is independent of host byte order: the twelve
+32-bit state words are accessed in turn, followed by the 64-bit counter,
+each in standard little-endian order.
+
+The last eight bytes of duplex_t are serialised as a second 64-bit integer.
+They are unused by duplex.h and can safely be discarded. Alternatively, use
+duplex_extra(state) to address them as an auxiliary uint64_t lvalue.
+
+For example, to serialise state to uint8_t packed[56], use
+
+  for (size_t i = 0; i < sizeof(packed); i++)
+    packed[i] = duplex_byte(state, i);
+
+and it can later be restored from this packed form with
+
+  for (size_t i = 0; i < sizeof(packed); i++)
+    duplex_byte(state, i) = packed[i];
+
+Similar loops can be used to store or stream serialised state directly.
+
+
 Implementation notes
 --------------------
 
