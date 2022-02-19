@@ -2,6 +2,7 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 #include "duplex.h"
 #include "util.h"
@@ -38,7 +39,7 @@ int main(int argc, char **argv) {
   process(state);
   duplex_absorb(state, identity, sizeof(identity));
 
-  duplex_copy(seed, state, sizeof(state));
+  memcpy(seed, state, sizeof(seed));
   duplex_absorb(seed, secret, sizeof(secret));
   duplex_squeeze(seed, scalar, sizeof(scalar));
   x25519(point, scalar, x25519_base);

@@ -41,7 +41,7 @@ int main(int argc, char **argv) {
     put(out, salt, duplex_rate);
 
     duplex_absorb(state, salt, duplex_rate);
-    duplex_copy(seed, state, sizeof(state));
+    memcpy(seed, state, sizeof(seed));
     duplex_absorb(state, password, strlen(password));
     duplex_pad(state);
 

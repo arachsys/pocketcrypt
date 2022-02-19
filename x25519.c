@@ -216,7 +216,7 @@ static void montmul(scalar_t out, const scalar_t x, const scalar_t y) {
   memcpy(out, z, sizeof(scalar_t));
 }
 
-static void swapin(limb_t *out, const uint8_t *in) {
+static void get(limb_t out[LIMBS], const x25519_t in) {
   for (int i = 0; i < LIMBS; i++) {
     out[i] = (limb_t) *in++;
     for (int j = 8; j < WBITS; j += 8)
@@ -224,7 +224,7 @@ static void swapin(limb_t *out, const uint8_t *in) {
   }
 }
 
-static void swapout(uint8_t *out, limb_t *in) {
+static void put(x25519_t out, const limb_t in[LIMBS]) {
   for (int i = 0; i < LIMBS; i++) {
     for (int j = 0; j < WBITS; j += 8)
       *out++ = (uint8_t) (in[i] >> j);
@@ -236,7 +236,7 @@ static void x25519_core(element_t x2, element_t z2, const x25519_t scalar,
   element_t x1, x3, z3, t1;
   limb_t swap = 0;
 
-  swapin(x1, point);
+  get(x1, point);
   memcpy(x2, one, sizeof(element_t));
   memcpy(z2, zero, sizeof(element_t));
   memcpy(x3, x1, sizeof(element_t));
@@ -276,13 +276,13 @@ int x25519(x25519_t out, const x25519_t scalar, const x25519_t point) {
   mul(x, x, t);
 
   limb_t result = canon(x);
-  swapout(out, x);
+  put(out, x);
   return result;
 }
 
 void x25519_invert(x25519_t out, const x25519_t scalar) {
   scalar_t x, y, z[8];
-  swapin(x, scalar);
+  get(x, scalar);
 
   montmul(z[0], x, scalar_r2);
   montmul(z[7], z[0], z[0]);
@@ -303,7 +303,7 @@ void x25519_invert(x25519_t out, const x25519_t scalar) {
   }
 
   montmla(y, zero, zero);
-  swapout(out, y);
+  put(out, y);
 }
 
 void x25519_point(x25519_t out, const x25519_t element) {
@@ -314,7 +314,7 @@ void x25519_point(x25519_t out, const x25519_t element) {
   };
 
   element_t r, s, x, y, z;
-  swapin(r, element);
+  get(r, element);
 
   mul(s, r, r);
   add(s, s, s);
@@ -340,7 +340,7 @@ void x25519_point(x25519_t out, const x25519_t element) {
   condswap(x, s, mask);
 
   canon(x);
-  swapout(out, x);
+  put(out, x);
 }
 
 void x25519_scalar(x25519_t out, const x25519_t scalar) {
@@ -350,26 +350,26 @@ void x25519_scalar(x25519_t out, const x25519_t scalar) {
   };
 
   scalar_t x;
-  swapin(x, scalar);
+  get(x, scalar);
   montmul(x, x, k);
   montmul(x, x, scalar_r2);
 
   dlimb_t carry = 0;
   for (int i = 0; i < LIMBS; i++)
     x[i] = carry += (dlimb_t) x[i] << 3, carry >>= WBITS;
-  swapout(out, x);
+  put(out, x);
 }
 
 void x25519_sign(x25519_t response, const x25519_t challenge,
     const x25519_t ephemeral, const x25519_t identity) {
   scalar_t x, y, z;
-  swapin(x, ephemeral);
-  swapin(y, identity);
-  swapin(z, challenge);
+  get(x, ephemeral);
+  get(y, identity);
+  get(z, challenge);
 
   montmla(x, y, z);
   montmul(y, x, scalar_r2);
-  swapout(response, y);
+  put(response, y);
 }
 
 int x25519_verify(const x25519_t response, const x25519_t challenge,
@@ -384,7 +384,7 @@ int x25519_verify(const x25519_t response, const x25519_t challenge,
   mul(z2, z2, x1);
   mul(z2, z2, z1);
 
-  swapin(t1, ephemeral);
+  get(t1, ephemeral);
   mul(z2, z2, t1);
   mul1(z2, z2, 16);
 

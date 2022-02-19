@@ -16,23 +16,18 @@
 
 #if defined __BYTE_ORDER__ && __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
 #define duplex_byte(state, i) ((uint8_t *) state)[i]
-#define duplex_bytes(words) ((uint8x16_t) words)
 #define duplex_r24 1, 2, 3, 0, 5, 6, 7, 4, 9, 10, 11, 8, 13, 14, 15, 12
 #define duplex_rho 11, 8, 9, 10, 15, 12, 13, 14, 3, 0, 1, 2, 7, 4, 5, 6
 #elif defined __BYTE_ORDER__ && __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
 #define duplex_byte(state, i) ((uint8_t *) state)[(i) ^ ((i) < 48 ? 3 : 7)]
-#define duplex_bytes(words) duplex_swap((uint8x16_t) words, \
-  3, 2, 1, 0, 7, 6, 5, 4, 11, 10, 9, 8, 15, 14, 13, 12)
 #define duplex_r24 3, 0, 1, 2, 7, 4, 5, 6, 11, 8, 9, 10, 15, 12, 13, 14
 #define duplex_rho 9, 10, 11, 8, 13, 14, 15, 12, 1, 2, 3, 0, 5, 6, 7, 4
 #else
 #error Byte order could not be determined
 #endif
 
-#define duplex_copy __builtin_memcpy
 #define duplex_counter(state) ((uint64_t *) state)[6]
 #define duplex_extra(state) ((uint64_t *) state)[7]
-#define duplex_words(bytes) ((uint32x4_t) duplex_bytes(bytes))
 #define duplex_rate 16
 
 #ifndef duplex_permute
@@ -89,6 +84,18 @@ static inline void duplex_xoodoo(uint32x4_t state[3]) {
   }
 }
 
+static inline uint32x4_t duplex_get(const uint8_t in[16]) {
+  uint32x4_t out;
+  for (int i = 0; i < 16; i++)
+    duplex_byte(&out, i) = in[i];
+  return out;
+}
+
+static inline void duplex_put(uint8_t out[16], uint32x4_t in) {
+  for (int i = 0; i < 16; i++)
+    out[i] = duplex_byte(&in, i);
+}
+
 static inline void duplex_absorb(duplex_t state, const uint8_t *data,
     size_t length) {
   uint8_t offset = duplex_counter(state) & 15;
@@ -106,10 +113,7 @@ static inline void duplex_absorb(duplex_t state, const uint8_t *data,
     }
 
     while (length >= 16) {
-      uint8x16_t chunk;
-      duplex_copy(&chunk, data, 16);
-      chunk ^= duplex_bytes(state[0]);
-      state[0] = duplex_words(chunk);
+      state[0] ^= duplex_get(data);
       data += 16, length -= 16;
       duplex_permute(state);
     }
@@ -143,11 +147,9 @@ static inline void duplex_decrypt(duplex_t state, uint8_t *data,
     }
 
     while (length >= 16) {
-      uint8x16_t chunk;
-      duplex_copy(&chunk, data, 16);
-      chunk ^= duplex_bytes(state[0]);
-      state[0] ^= duplex_words(chunk);
-      duplex_copy(data, &chunk, 16);
+      uint32x4_t words = duplex_get(data);
+      words ^= state[0], state[0] ^= words;
+      duplex_put(data, words);
       data += 16, length -= 16;
       duplex_permute(state);
     }
@@ -172,11 +174,8 @@ static inline void duplex_encrypt(duplex_t state, uint8_t *data,
     }
 
     while (length >= 16) {
-      uint8x16_t chunk;
-      duplex_copy(&chunk, data, 16);
-      chunk ^= duplex_bytes(state[0]);
-      duplex_copy(data, &chunk, 16);
-      state[0] = duplex_words(chunk);
+      state[0] ^= duplex_get(data);
+      duplex_put(data, state[0]);
       data += 16, length -= 16;
       duplex_permute(state);
     }
@@ -220,8 +219,7 @@ static inline void duplex_squeeze(duplex_t state, uint8_t *data,
     }
 
     while (length >= 16) {
-      uint8x16_t chunk = duplex_bytes(state[0]);
-      duplex_copy(data, &chunk, 16);
+      duplex_put(data, state[0]);
       data += 16, length -= 16;
       duplex_permute(state);
     }
