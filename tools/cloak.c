@@ -29,6 +29,7 @@ static void process(duplex_t state) {
 int main(int argc, char **argv) {
   size_t size = argc >= 2 ? strtoul(argv[1], NULL, 10) : 64;
   size_t rounds = argc >= 3 ? strtoul(argv[2], NULL, 10) : 2;
+  size_t independent = rounds != 0, dependent = rounds - independent;
 
   if (argc <= 3 && size > 0 && rounds > 0) {
     duplex_t seed, state = { 0 };
@@ -47,7 +48,7 @@ int main(int argc, char **argv) {
 
     if ((buffer = malloc(size << 20)) == NULL)
       err(EXIT_FAILURE, "malloc");
-    duplex_swirl(state, seed, buffer, size << 20, rounds);
+    duplex_swirl(state, seed, buffer, size << 20, independent, dependent);
     free(buffer);
 
     process(state);
