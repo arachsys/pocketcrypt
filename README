@@ -390,6 +390,11 @@ to be signed, because the prover must commit before the verifier challenges
 in the corresponding sigma protocol. Absorb the ephemeral public key on top
 of a duplex state before squeezing a challenge to sign that state.
 
+The signer's public identity should also be absorbed before signing unless
+the state is already bound to it. https://eprint.iacr.org/2015/996.pdf
+shows that multi-user attacks against key-prefixed Schnorr signatures are
+no easier than single-user attacks against unprefixed signatures.
+
 Signatures are malleable: if s' = ± s (mod l) where s is a valid response,
 s' is also a valid response. Similarly, a valid signature for a challenge c
 verifies for any c' = ± c (mod l). As with all Schnorr signatures, leaking
