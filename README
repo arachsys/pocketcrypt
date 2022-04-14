@@ -207,9 +207,13 @@ permutation takes 30% longer with clang 13.0.1 and more than double the
 time with gcc 11.2.0. Similarly, a simpler byte-by-byte absorb/squeeze loop
 sacrifices around 20% bulk throughput with both compilers.
 
-Although duplex.h should work on both little- and big-endian architectures,
-it will refuse to build on a mixed-endian system even if you contrive one
-with sufficient gcc support.
+Although duplex.h works on both little- and big-endian architectures, it
+will refuse to build on a mixed-endian system even if you contrive one with
+sufficient gcc support. Both duplex_gimli() and duplex_xoodoo() explicitly
+shuffle uint32x4_t rows as uint8x16_t vectors to optimise byte-aligned
+rotations and word-exchanges. This improves Xoodoo and Gimli throughput by
+10% and 20% respectively with gcc 11.2.0, although the performance gap is
+much smaller on clang.
 
 For information on Gimli, see https://gimli.cr.yp.to/gimli-20170627.pdf and
 the documentation at https://csrc.nist.gov/projects/lightweight-cryptography
