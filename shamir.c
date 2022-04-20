@@ -89,7 +89,7 @@ static void slice(sliced_t r, const secret_t x) {
 
 void shamir_combine(secret_t secret, uint8_t count,
     const share_t shares[count]) {
-  sliced_t x[count], y[count], z = { 0 };
+  sliced_t x[255], y[255], z = { 0 };
 
   for (int i = 0; i < count; i++) {
     fill(x[i], shares[i][0]);
