@@ -37,22 +37,27 @@ keyfile PK, use
   encrypt SK PK
 
 supplying the plaintext on stdin. This writes encrypted data (comprising a
-16-byte random nonce, ciphertext and 16-byte authentication tag) to stdout.
+16-byte random nonce followed by 65536-byte ciphertext chunks, each with a
+16-byte authentication tag) to stdout.
 
 To authenticate and decrypt data sent from the public identity in keyfile PK
 to the secret key in keyfile SK, run
 
   decrypt SK PK
 
-supplying the encrypted data (nonce, ciphertext and authentication tag) on
-stdin. Decrypted plaintext is written to stdout only if authentication
-succeeds. Otherwise, an error is generated.
+supplying the encrypted data on stdin. Decrypted plaintext chunks are
+written to stdout only once authenticated. If authentication fails,
+decryption aborts with an error and the invalid plaintext is not released.
 
-Encryption is implemented as a streaming operation, but decryption needs to
-buffer the entire ciphertext in memory to authenticate it before plaintext
-can safely be released. Alternative strategies might include streaming
-plaintext to a temporary file before releasing it, or sending individually
-tagged chunks which can be independently authenticated and released.
+Encryption and decryption are implemented as streaming operations: running
+authentication tags are emitted after every 65536-byte chunk of ciphertext
+as well as at the end of the stream. Without these, decryption would need
+to buffer the entire stream until the final tag is verified, to avoid
+releasing unauthenticated plaintext.
+
+The stream will always end with one chunk shorter than 65536 bytes. If the
+plaintext is a multiple of 65536 bytes long, an empty final data chunk is
+authenticated to distinguish premature truncation from real end-of-stream.
 
 For keypairs (a, A) and (b, B), the same shared secret abG results from aB
 and bA. Messages can therefore be encrypted and decrypted using either the
@@ -67,17 +72,18 @@ To encrypt data anonymously to the public identity in keyfile PK, use
 
   encrypt PK
 
-supplying the plaintext on stdin. This writes a 32-byte ephemeral identity,
-ciphertext and 16-byte authentication tag to stdout.
+supplying the plaintext on stdin. This writes a 32-byte ephemeral identity
+to stdout, followed by 65536-byte ciphertext chunks and their 16-byte
+authentication tags.
 
 To authenticate and decrypt data sent anonymously to the secret key in
 keyfile SK, run
 
   decrypt SK
 
-supplying the encrypted data (ephemeral identity, ciphertext and tag) on
-stdin. Decrypted plaintext is written to stdout if authentication succeeds.
-Otherwise, an error is returned.
+supplying the encrypted data (ephemeral identity, ciphertext chunks and
+their tags) on stdin. Decrypted plaintext chunks are written to stdout only
+once authenticated. Otherwise, decryption aborts with an error.
 
 
 Signatures

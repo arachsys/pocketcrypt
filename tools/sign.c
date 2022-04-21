@@ -9,16 +9,12 @@
 #include "x25519.h"
 
 static void process(duplex_t state) {
-  size_t length;
-  uint8_t *data;
-
-  if ((data = malloc(chunk)) == NULL)
-    err(EXIT_FAILURE, "malloc");
+  size_t chunk = 65536, length;
+  uint8_t data[65536];
 
   while ((length = get(in, data, chunk)))
     duplex_absorb(state, data, length);
   duplex_pad(state);
-  free(data);
 }
 
 int main(int argc, char **argv) {

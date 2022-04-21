@@ -9,21 +9,16 @@
 #include "util.h"
 
 static void process(duplex_t state) {
-  size_t length;
-  uint8_t *data;
+  size_t chunk = 65536, length;
+  uint8_t data[65536 + duplex_rate];
 
-  if ((data = malloc(chunk)) == NULL)
-    err(EXIT_FAILURE, "malloc");
-
-  while ((length = get(in, data, chunk))) {
+  do {
+    length = get(in, data, chunk);
     duplex_encrypt(state, data, length);
-    put(out, data, length);
-  }
-  duplex_pad(state);
-
-  duplex_squeeze(state, data, duplex_rate);
-  put(out, data, duplex_rate);
-  free(data);
+    duplex_pad(state);
+    duplex_squeeze(state, data + length, duplex_rate);
+    put(out, data, length + duplex_rate);
+  } while (length == chunk);
 }
 
 int main(int argc, char **argv) {

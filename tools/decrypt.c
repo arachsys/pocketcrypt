@@ -8,28 +8,22 @@
 #include "x25519.h"
 
 static void process(duplex_t state) {
-  size_t count, length = 0;
-  uint8_t *data = NULL;
+  size_t chunk = 65536, length;
+  uint8_t data[65536 + duplex_rate];
 
   do {
-    if ((data = realloc(data, length + chunk)) == NULL)
-      err(EXIT_FAILURE, "realloc");
-    length += count = get(in, data + length, chunk);
-  } while (count == chunk);
+    length = get(in, data, chunk + duplex_rate);
+    if (length < duplex_rate)
+      errx(EXIT_FAILURE, "Input is truncated");
+    length -= duplex_rate;
 
-  if (length < duplex_rate)
-    errx(EXIT_FAILURE, "Input is truncated");
-  length = length - duplex_rate;
-
-  duplex_decrypt(state, data, length);
-  duplex_pad(state);
-
-  duplex_decrypt(state, data + length, duplex_rate);
-  if (duplex_compare(data + length, 0, duplex_rate))
-    errx(EXIT_FAILURE, "Authentication failed");
-
-  put(out, data, length);
-  free(data);
+    duplex_decrypt(state, data, length);
+    duplex_pad(state);
+    duplex_decrypt(state, data + length, duplex_rate);
+    if (duplex_compare(data + length, 0, duplex_rate))
+      errx(EXIT_FAILURE, "Authentication failed");
+    put(out, data, length);
+  } while (length == chunk);
 }
 
 int main(int argc, char **argv) {

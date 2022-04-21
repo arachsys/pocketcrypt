@@ -8,10 +8,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 
-extern int getentropy(void *data, size_t length);
-
 static const int in = STDIN_FILENO, out = STDOUT_FILENO;
-static const size_t chunk = 1 << 20;
 
 static inline size_t get(int fd, uint8_t *data, size_t length) {
   ssize_t count, total = 0;
@@ -45,6 +42,7 @@ static inline void put(int fd, const uint8_t *data, size_t length) {
 }
 
 static inline void randomise(void *data, size_t length) {
+  extern int getentropy(void *data, size_t length);
   if (getentropy(data, length))
     err(EXIT_FAILURE, "getentropy");
 }
