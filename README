@@ -58,7 +58,7 @@ Typically this is bundled into the higher-level operations.
 Absorbing and squeezing data
 ----------------------------
 
-Absorb a uint8_t[] buffer into a duplex state with
+Absorb a buffer of bytes into a duplex state with
 
   duplex_absorb(state, data, length);
 
@@ -66,7 +66,7 @@ Each rate-sized chunk is absorbed in turn, then the state is permuted before
 continuing. Once any final partial chunk is absorbed, the counter will
 advance by length ready for the next duplex operation.
 
-Squeeze data from a duplex state into a uint8_t[] buffer with
+Squeeze data from a duplex state into a buffer with
 
   duplex_squeeze(state, data, length);
 
