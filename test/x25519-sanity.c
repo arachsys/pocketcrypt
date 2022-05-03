@@ -16,7 +16,7 @@ static void bitflip(x25519_t key) {
 }
 
 static void generate(x25519_t key) {
-  for (size_t i = 0; i < sizeof(x25519_t); i++) {
+  for (size_t i = 0; i < x25519_size; i++) {
     seed += seed * seed | 5;
     key[i] = seed >> 24;
   }
@@ -34,12 +34,12 @@ int main(void) {
 
     x25519(shared1, secret1, public2);
     x25519(shared2, secret2, public1);
-    if (memcmp(shared1, shared2, sizeof(shared1)) != 0) /* variable time */
+    if (memcmp(shared1, shared2, x25519_size) != 0) /* variable time */
       errx(EXIT_FAILURE, "Valid key exchange failed");
 
     bitflip(secret2); /* secret index */
     x25519(shared2, secret2, public1);
-    if (memcmp(shared1, shared2, sizeof(shared1)) == 0) /* variable time */
+    if (memcmp(shared1, shared2, x25519_size) == 0) /* variable time */
       errx(EXIT_FAILURE, "Invalid key exchange succeeded");
   }
 
@@ -72,13 +72,13 @@ int main(void) {
 
     x25519_invert(inverse, scalar2);
     x25519(point3, inverse, point2);
-    if (memcmp(point1, point3, sizeof(point1)) != 0) /* variable time */
+    if (memcmp(point1, point3, x25519_size) != 0) /* variable time */
       errx(EXIT_FAILURE, "Valid scalar inversion failed");
 
     bitflip(scalar2);
     x25519_invert(inverse, scalar2);
     x25519(point3, inverse, point2);
-    if (memcmp(point1, point3, sizeof(point1)) == 0) /* variable time */
+    if (memcmp(point1, point3, x25519_size) == 0) /* variable time */
       errx(EXIT_FAILURE, "Invalid scalar inversion succeeded");
   }
 
@@ -91,7 +91,7 @@ int main(void) {
 
     x25519(point1, scalar1, x25519_base);
     x25519(point2, scalar2, x25519_base);
-    if (memcmp(point1, point2, sizeof(point1)) != 0) /* variable time */
+    if (memcmp(point1, point2, x25519_size) != 0) /* variable time */
       errx(EXIT_FAILURE, "Scalar representative is not equivalent");
   }
 

@@ -11,13 +11,13 @@ int main(int argc, char **argv) {
     secret_t entropy[threshold - 1], secret;
     share_t share;
 
-    load(argv[2], secret, sizeof(secret));
+    load(argv[2], secret, secret_size);
     for (int i = 0; i < threshold - 1; i++)
-      randomise(entropy[i], sizeof(secret_t));
+      randomise(entropy[i], secret_size);
 
     for (int i = 0; i < argc - 3; i++) {
       shamir_split(share, i, threshold, secret, entropy);
-      save(argv[i + 3], share, sizeof(share));
+      save(argv[i + 3], share, share_size);
     }
     return EXIT_SUCCESS;
   }

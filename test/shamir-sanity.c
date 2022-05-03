@@ -24,35 +24,35 @@ static void fill(uint8_t *out, size_t length) {
 
 int main(void) {
   for (uint8_t k = 255; k > 1; k = 15 * k >> 4) {
-    fill(secret, sizeof(secret));
+    fill(secret, secret_size);
     fill((uint8_t *) entropy, sizeof(entropy));
 
     for (uint8_t i = 0, j = 0; i < 255; i++) {
       /* Inline Fisher-Yates shuffle: random array indices */
       seed += seed * seed | 5, j = (uint64_t) seed * (i + 1) >> 32;
-      memmove(shares[i], shares[j], sizeof(share_t));
+      memmove(shares[i], shares[j], share_size);
       shamir_split(shares[j], i, k, secret, entropy);
     }
 
-    memset(secret2, 0, sizeof(secret2));
+    memset(secret2, 0, secret_size);
     shamir_combine(secret2, k, shares);
-    if (memcmp(secret, secret2, sizeof(secret)) != 0) /* variable time */
+    if (memcmp(secret, secret2, secret_size) != 0) /* variable time */
       errx(EXIT_FAILURE, "Quorate secret reconstruction failed");
 
-    memset(secret2, 0, sizeof(secret2));
+    memset(secret2, 0, secret_size);
     shamir_combine(secret2, 255, shares);
-    if (memcmp(secret, secret2, sizeof(secret)) != 0) /* variable time */
+    if (memcmp(secret, secret2, secret_size) != 0) /* variable time */
       errx(EXIT_FAILURE, "Overconstrained secret reconstruction failed");
 
-    memset(secret2, 0, sizeof(secret2));
+    memset(secret2, 0, secret_size);
     shamir_combine(secret2, k - 1, shares);
-    if (memcmp(secret, secret2, sizeof(secret)) == 0) /* variable time */
+    if (memcmp(secret, secret2, secret_size) == 0) /* variable time */
       errx(EXIT_FAILURE, "Non-quorate secret reconstruction succeeded");
 
     bitflip(shares[0]); /* corrupt random share as shares are shuffled */
-    memset(secret2, 0, sizeof(secret2));
+    memset(secret2, 0, secret_size);
     shamir_combine(secret2, k, shares);
-    if (memcmp(secret, secret2, sizeof(secret)) == 0) /* variable time */
+    if (memcmp(secret, secret2, secret_size) == 0) /* variable time */
       errx(EXIT_FAILURE, "Invalid secret reconstruction succeeded");
   }
 

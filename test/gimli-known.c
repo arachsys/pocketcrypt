@@ -2147,7 +2147,7 @@ static int check(uint8_t *in, const char *hex) {
 }
 
 void encrypt(void) {
-  uint8_t in[32], tag[duplex_rate], out[sizeof(in) + sizeof(tag)];
+  uint8_t in[32], tag[duplex_rate], out[32 + duplex_rate];
   duplex_t state;
 
   for (size_t i = 0; i < sizeof(in); i++)
@@ -2156,32 +2156,32 @@ void encrypt(void) {
   for (size_t length = 0; length <= sizeof(in); length++)
     for (size_t extra = 0; extra <= sizeof(in); extra++) {
       size_t entry = length * (sizeof(in) + 1) + extra;
-      if (entry >= sizeof(ciphertexts) / sizeof(char *))
+      if (entry >= sizeof(ciphertexts) / sizeof(*ciphertexts))
         continue;
 
-      memcpy(state, start, sizeof(state));
+      memcpy(state, start, duplex_size);
       duplex_permute(state);
       duplex_absorb(state, in, extra);
       duplex_pad(state);
       memcpy(out, in, sizeof(in));
       duplex_encrypt(state, out, length);
       duplex_pad(state);
-      duplex_squeeze(state, out + length, sizeof(tag));
+      duplex_squeeze(state, out + length, duplex_rate);
       if (check(out, ciphertexts[entry])) /* variable time */
         errx(EXIT_FAILURE, "Encryption failure with %zd-byte message and "
           "%zd-byte associated data", length, extra);
 
-      memcpy(state, start, sizeof(state));
+      memcpy(state, start, duplex_size);
       duplex_permute(state);
       duplex_absorb(state, in, extra);
       duplex_pad(state);
       duplex_decrypt(state, out, length);
       duplex_pad(state);
-      duplex_squeeze(state, tag, sizeof(tag));
+      duplex_squeeze(state, tag, duplex_rate);
       if (memcmp(in, out, length)) /* variable time */
         errx(EXIT_FAILURE, "Decryption failure with %zd-byte message and "
           "%zd-byte associated data", length, extra);
-      if (memcmp(out + length, tag , sizeof(tag))) /* variable time */
+      if (memcmp(out + length, tag, duplex_rate)) /* variable time */
         errx(EXIT_FAILURE, "Authentication failure with %zd-byte message "
           "and %zd-byte associated data", length, extra);
     }
@@ -2190,7 +2190,7 @@ void encrypt(void) {
 }
 
 void hash(void) {
-  const size_t max = sizeof(digests) / sizeof(char *) - 1;
+  const size_t max = sizeof(digests) / sizeof(*digests) - 1;
   uint8_t in[max], out[32];
 
   for (size_t i = 0; i < max; i++)
@@ -2200,7 +2200,7 @@ void hash(void) {
     duplex_t state = { 0 };
     duplex_absorb(state, in, length);
     duplex_pad(state);
-    duplex_squeeze(state, out, 32);
+    duplex_squeeze(state, out, sizeof(out));
     if (check(out, digests[length])) /* variable time */
       errx(EXIT_FAILURE, "Known hash failure with %zd-byte input", length);
   }
@@ -2213,7 +2213,7 @@ void permute(void) {
 
   for (size_t i = 0; i < 1000000; i++)
     duplex_permute(state);
-  if (memcmp(state, million, sizeof(duplex_t))) /* variable time */
+  if (memcmp(state, million, duplex_size)) /* variable time */
     errx(EXIT_FAILURE, "Iterated Gimli failure");
 
   printf("Reference Gimli permutations checked\n");

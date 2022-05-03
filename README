@@ -42,6 +42,10 @@ counter alongside the duplex state, operations can also seamlessly absorb,
 squeeze, encrypt and decrypt partial chunks. The combined state and counter
 are stored as duplex_t, a type alias for uint32x4_t[4].
 
+For convenience, duplex.h defines duplex_rate as 16 (the permutation rate)
+and duplex_size as sizeof(duplex_t) to help avoid magic numbers for nonce,
+tag and state sizes in client code.
+
 Initialise a duplex state including the byte counter with
 
   duplex_t state = { 0 };
@@ -116,9 +120,6 @@ multiples of duplex_rate such as keys or nonces can safely be absorbed
 unpadded. However, to avoid extension attacks, variable-length messages must
 be padded even if they happen to be an exact multiple of the rate.
 
-For convenience, duplex_rate is defined as 16 to help avoid magic numbers
-for nonce and tag sizes in client code.
-
 
 Ratcheting
 ----------
@@ -162,8 +163,8 @@ Serialising duplex state
 ------------------------
 
 Use duplex_byte(state, index) to dereference individual bytes of a duplex
-state as lvalues, where 0 <= index < sizeof(duplex_t). This macro may
-evaluate the index argument more than once.
+state as lvalues, where 0 <= index < duplex_size. This macro may evaluate
+the index argument more than once.
 
 The resulting representation is independent of host byte order: the twelve
 32-bit state words are accessed in turn, followed by the 64-bit counter,
@@ -241,7 +242,7 @@ Both curve points (represented by Montgomery x-coordinates) and scalars are
 manipulated as 32-byte little-endian arrays. The correct-sized array type
 and standard base point (generator) are defined by x25519.h as
 
-  typedef uint8_t x25519_t[32];
+  typedef uint8_t x25519_t[x25519_size];
   const x25519_t x25519_base = { 9 };
 
 x25519.c assumes constant-time integer multiplication. This is valid for

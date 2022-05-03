@@ -5,7 +5,9 @@
 
 #include <stdint.h>
 
-typedef uint8_t x25519_t[32];
+enum { x25519_size = 32 };
+typedef uint8_t x25519_t[x25519_size];
+
 extern const x25519_t x25519_base;
 
 extern int x25519(x25519_t out, const x25519_t scalar,

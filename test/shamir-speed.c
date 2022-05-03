@@ -23,7 +23,7 @@ static double split(size_t repeat, uint8_t threshold) {
 }
 
 int main(void) {
-  for (size_t i = 0; i < sizeof(secret); i++) {
+  for (size_t i = 0; i < secret_size; i++) {
     secret[i] = (uint8_t) i;
     for (size_t j = 0; j < 254; j++)
       entropy[j][i] = (uint8_t) (i + j);

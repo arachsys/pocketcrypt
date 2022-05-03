@@ -5,8 +5,9 @@
 
 #include <stdint.h>
 
-typedef uint8_t secret_t[32];
-typedef uint8_t share_t[33];
+enum { secret_size = 32, share_size = 33 };
+typedef uint8_t secret_t[secret_size];
+typedef uint8_t share_t[share_size];
 
 extern void shamir_combine(secret_t secret, uint8_t count,
   const share_t shares[count]);

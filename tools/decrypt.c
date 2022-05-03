@@ -31,12 +31,12 @@ int main(int argc, char **argv) {
   x25519_t point, scalar;
 
   if (argc == 2) {
-    load(argv[1], scalar, sizeof(scalar));
-    if (get(in, point, sizeof(point)) != sizeof(point))
+    load(argv[1], scalar, x25519_size);
+    if (get(in, point, x25519_size) != x25519_size)
       errx(EXIT_FAILURE, "Input is truncated");
   } else if (argc == 3) {
-    load(argv[1], scalar, sizeof(scalar));
-    load(argv[2], point, sizeof(point));
+    load(argv[1], scalar, x25519_size);
+    load(argv[2], point, x25519_size);
   } else {
     fprintf(stderr, "Usage: %s SK [PK]\n", argv[0]);
     return 64;
@@ -44,7 +44,7 @@ int main(int argc, char **argv) {
 
   if (x25519(point, scalar, point))
     errx(EXIT_FAILURE, "Invalid public identity");
-  duplex_absorb(state, point, sizeof(point));
+  duplex_absorb(state, point, x25519_size);
 
   if (argc == 3) {
     uint8_t nonce[duplex_rate];

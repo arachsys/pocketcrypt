@@ -25,13 +25,13 @@ int main(int argc, char **argv) {
     return 64;
   }
 
-  load(argv[1], identity, sizeof(identity));
-  load(argv[2], signature, sizeof(signature));
+  load(argv[1], identity, x25519_size);
+  load(argv[2], signature, 2 * x25519_size);
   process(state);
 
-  duplex_absorb(state, identity, sizeof(identity));
-  duplex_absorb(state, signature[0], sizeof(x25519_t));
-  duplex_squeeze(state, challenge, sizeof(challenge));
+  duplex_absorb(state, identity, x25519_size);
+  duplex_absorb(state, signature[0], x25519_size);
+  duplex_squeeze(state, challenge, x25519_size);
 
   if (x25519_verify(signature[1], challenge, signature[0], identity))
     errx(EXIT_FAILURE, "Verification failed");

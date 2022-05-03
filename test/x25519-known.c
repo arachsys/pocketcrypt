@@ -1577,7 +1577,7 @@ const char *shared[] = {
   "e3c649beae7cc4a0698d519a0a61932ee5493cbb590dbe14db0274cc8611f914"
 };
 
-const int validity[sizeof(secret)] = {
+const int validity[sizeof(secret) / sizeof(*secret)] = {
   /* Test vectors which generate a shared secret of zero: */
   [33] = -1, [34] = -1, [64] = -1, [65] = -1, [66] = -1,
   [67] = -1, [68] = -1, [69] = -1, [70] = -1, [71] = -1,
@@ -2003,11 +2003,11 @@ const char *point[] = {
 static void clamp(x25519_t scalar, x25519_t point) {
   if (scalar) {
     scalar[0] &= 0xf8;
-    scalar[sizeof(x25519_t) - 1] &= 0x7f;
-    scalar[sizeof(x25519_t) - 1] |= 0x40;
+    scalar[x25519_size - 1] &= 0x7f;
+    scalar[x25519_size - 1] |= 0x40;
   }
   if (point)
-    point[sizeof(x25519_t) - 1] &= 0x7f;
+    point[x25519_size - 1] &= 0x7f;
 }
 
 static void hex(uint8_t *out, const char *in) {
@@ -2016,7 +2016,7 @@ static void hex(uint8_t *out, const char *in) {
 }
 
 int main(void) {
-  for (size_t i = 0; i < sizeof(secret) / sizeof(char *); i++) {
+  for (size_t i = 0; i < sizeof(secret) / sizeof(*secret); i++) {
     x25519_t sk, pk, kx, ky;
     hex(sk, secret[i]);
     hex(pk, public[i]);
@@ -2025,17 +2025,17 @@ int main(void) {
     clamp(sk, pk); /* Wycheproof vectors assume RFC 7822 clamping */
     if (x25519(ky, sk, pk) != validity[i])
       errx(EXIT_FAILURE, "Known X25519 failure on test vector %zd", i + 1);
-    if (memcmp(kx, ky, sizeof(x25519_t)) != 0)
+    if (memcmp(kx, ky, x25519_size) != 0)
       errx(EXIT_FAILURE, "Known X25519 failure on test vector %zd", i + 1);
   }
 
-  for (size_t i = 0; i < sizeof(element) / sizeof(char *); i++) {
+  for (size_t i = 0; i < sizeof(element) / sizeof(*element); i++) {
     x25519_t e, p, q;
     hex(e, element[i]);
     hex(p, point[i]);
 
     x25519_point(q, e);
-    if (memcmp(p, q, sizeof(x25519_t)) != 0)
+    if (memcmp(p, q, x25519_size) != 0)
       errx(EXIT_FAILURE, "Elligator failure on test vector %zd", i + 1);
   }
 

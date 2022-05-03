@@ -26,25 +26,25 @@ int main(int argc, char **argv) {
     return 64;
   }
 
-  load(argv[1], secret, sizeof(secret));
+  load(argv[1], secret, x25519_size);
   if (argv[2])
-    load(argv[2], identity, sizeof(identity));
+    load(argv[2], identity, x25519_size);
   else
     x25519(identity, secret, x25519_base);
 
   process(state);
-  duplex_absorb(state, identity, sizeof(identity));
+  duplex_absorb(state, identity, x25519_size);
 
-  memcpy(seed, state, sizeof(seed));
-  duplex_absorb(seed, secret, sizeof(secret));
-  duplex_squeeze(seed, scalar, sizeof(scalar));
+  memcpy(seed, state, x25519_size);
+  duplex_absorb(seed, secret, x25519_size);
+  duplex_squeeze(seed, scalar, x25519_size);
   x25519(point, scalar, x25519_base);
 
-  duplex_absorb(state, point, sizeof(point));
-  duplex_squeeze(state, challenge, sizeof(challenge));
+  duplex_absorb(state, point, x25519_size);
+  duplex_squeeze(state, challenge, x25519_size);
   x25519_sign(response, challenge, scalar, secret);
 
-  put(out, point, sizeof(point));
-  put(out, response, sizeof(response));
+  put(out, point, x25519_size);
+  put(out, response, x25519_size);
   return EXIT_SUCCESS;
 }

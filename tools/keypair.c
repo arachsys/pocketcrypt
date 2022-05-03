@@ -14,13 +14,13 @@ int main(int argc, char **argv) {
     return 64;
   }
 
-  randomise(scalar, sizeof(scalar));
+  randomise(scalar, x25519_size);
   scalar[0] &= 0xf8;
-  scalar[sizeof(x25519_t) - 1] &= 0x7f;
-  scalar[sizeof(x25519_t) - 1] |= 0x40;
+  scalar[x25519_size - 1] &= 0x7f;
+  scalar[x25519_size - 1] |= 0x40;
   x25519(point, scalar, x25519_base);
 
-  save(argv[1], scalar, sizeof(scalar));
-  save(argv[2], point, sizeof(point));
+  save(argv[1], scalar, x25519_size);
+  save(argv[2], point, x25519_size);
   return EXIT_SUCCESS;
 }

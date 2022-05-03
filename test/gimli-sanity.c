@@ -64,11 +64,11 @@ int main(void) {
   for (size_t length = size - 15; length <= size; length++)
     for (size_t chunk = min; chunk <= max; chunk++) {
       fill(buffer1, buffer2, length);
-      fill(state1, state2, sizeof(duplex_t));
+      fill(state1, state2, duplex_size);
       duplex_absorb(state1, buffer1, length);
       duplex_pad(state1);
       chunk_absorb(state2, buffer2, length, chunk);
-      if (memcmp(state1, state2, sizeof(duplex_t)))
+      if (memcmp(state1, state2, duplex_size))
         errx(EXIT_FAILURE, "Streaming absorb failure");
     }
 
@@ -76,13 +76,13 @@ int main(void) {
   for (size_t length = size - 15; length <= size; length++)
     for (size_t chunk = min; chunk <= max; chunk++) {
       fill(buffer1, buffer2, length);
-      fill(state1, state2, sizeof(duplex_t));
+      fill(state1, state2, duplex_size);
       duplex_decrypt(state1, buffer1, length);
       duplex_pad(state1);
       chunk_decrypt(state2, buffer2, length, chunk);
       if (memcmp(buffer1, buffer2, length))
         errx(EXIT_FAILURE, "Streaming decrypt failure");
-      if (memcmp(state1, state2, sizeof(duplex_t)))
+      if (memcmp(state1, state2, duplex_size))
         errx(EXIT_FAILURE, "Streaming decrypt failure");
     }
 
@@ -90,25 +90,25 @@ int main(void) {
   for (size_t length = size - 15; length <= size; length++)
     for (size_t chunk = min; chunk <= max; chunk++) {
       fill(buffer1, buffer2, length);
-      fill(state1, state2, sizeof(duplex_t));
+      fill(state1, state2, duplex_size);
       duplex_encrypt(state1, buffer1, length);
       duplex_pad(state1);
       chunk_encrypt(state2, buffer2, length, chunk);
       if (memcmp(buffer1, buffer2, length))
         errx(EXIT_FAILURE, "Streaming encrypt failure");
-      if (memcmp(state1, state2, sizeof(duplex_t)))
+      if (memcmp(state1, state2, duplex_size))
         errx(EXIT_FAILURE, "Streaming encrypt failure");
     }
 
   /* Check streaming squeeze matches a bulk squeeze */
   for (size_t chunk = min; chunk <= max; chunk++) {
     fill(buffer1, buffer2, size);
-    fill(state1, state2, sizeof(duplex_t));
+    fill(state1, state2, duplex_size);
     duplex_squeeze(state1, buffer1, size);
     chunk_squeeze(state2, buffer2, size, chunk);
     if (memcmp(buffer1, buffer2, size))
       errx(EXIT_FAILURE, "Streaming squeeze failure");
-    if (memcmp(state1, state2, sizeof(duplex_t)))
+    if (memcmp(state1, state2, duplex_size))
       errx(EXIT_FAILURE, "Streaming squeeze failure");
   }
 

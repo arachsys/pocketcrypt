@@ -536,7 +536,7 @@ int main(void) {
   for (size_t i = 1; i < 255; i++) {
     hex(sx, secret[i - 1]);
     shamir_combine(sy, i, ss);
-    if (memcmp(sx, sy, sizeof(secret_t))) /* variable time */
+    if (memcmp(sx, sy, secret_size)) /* variable time */
       errx(EXIT_FAILURE, "Reconstruction failure from %zd known shares", i);
   }
 

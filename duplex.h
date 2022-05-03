@@ -28,7 +28,6 @@
 
 #define duplex_counter(state) ((uint64_t *) state)[6]
 #define duplex_extra(state) ((uint64_t *) state)[7]
-#define duplex_rate 16
 
 #ifndef duplex_permute
 #define duplex_permute duplex_xoodoo
@@ -37,6 +36,11 @@
 typedef uint8_t uint8x16_t __attribute__((vector_size(16)));
 typedef uint32_t uint32x4_t __attribute__((vector_size(16)));
 typedef uint32x4_t duplex_t[4];
+
+enum {
+  duplex_rate = sizeof(uint32x4_t),
+  duplex_size = sizeof(duplex_t)
+};
 
 static inline void duplex_gimli(uint32x4_t state[3]) {
   for (int round = 24; round > 0; round--) {

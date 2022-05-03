@@ -10,10 +10,10 @@ int main(int argc, char **argv) {
     share_t shares[argc - 2];
 
     for (int i = 0; i < argc - 2; i++)
-      load(argv[i + 2], shares[i], sizeof(share_t));
+      load(argv[i + 2], shares[i], share_size);
     shamir_combine(secret, argc - 2, shares);
 
-    save(argv[1], secret, sizeof(secret));
+    save(argv[1], secret, secret_size);
     return EXIT_SUCCESS;
   }
 
