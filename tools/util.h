@@ -42,7 +42,7 @@ static inline void put(int fd, const uint8_t *data, size_t length) {
 }
 
 static inline void randomise(void *data, size_t length) {
-  extern int getentropy(void *data, size_t length);
+  int getentropy(void *data, size_t length);
   if (getentropy(data, length))
     err(EXIT_FAILURE, "getentropy");
 }
